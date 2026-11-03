@@ -1,0 +1,42 @@
+# Learned policies for vla.run. Data layout (fps/arms/cameras) MUST match the collection
+# config nodes/vla/collect/sim-piper.vla.yaml. Add trained models with nodes/vla/export_model.sh.
+# Each entry: name, path (pretrained_model dir), sha256 (model.safetensors), description, task,
+# optional n_action_steps (chunk length executed before re-planning), device, max_joint_step_rad.
+fps: 30
+torch_threads: 2     # HARDWARE-LIMITED (laptop CPU): 4-8 on the workstation
+home_joint_speed: 0.5   # rad/s along the vla.home path
+arms:
+  left:
+    urdf: ../../assets/robots/piper/piper_with_gripper.urdf
+    home_joints:
+    - 0.0
+    - 0.0383
+    - -0.0708
+    - 0.0
+    - 0.008
+    - 0.0
+    home_gripper_m: 0.07
+    max_opening_m: 0.07
+cameras:
+- name: top
+  input: top_color
+  size:
+  - 320
+  - 240
+- name: angle
+  input: angle_color
+  size:
+  - 320
+  - 240
+- name: hand
+  input: hand_color
+  size:
+  - 320
+  - 240
+policies:
+- name: sim_move
+  path: ~/.PhyAgentOS/models/piper-vla/sim_move
+  sha256: 3a4989a997b20d10a1f6bcfb3f689d730b8c6998ba0a4e526da502de34807363
+  description: 'sim smoke test: replays the autopilot circle motion'
+  task: move the arm
+  n_action_steps: 25

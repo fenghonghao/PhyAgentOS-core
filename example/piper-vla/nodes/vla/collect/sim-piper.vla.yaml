@@ -1,0 +1,24 @@
+# Single-arm MuJoCo version of the collection/inference layout (pipeline check without hardware).
+fps: 30
+arms:
+  left:
+    urdf: ../../../assets/robots/piper/piper_with_gripper.urdf
+    home_joints: [0.0, 0.0383, -0.0708, 0.0, 0.008, 0.0]   # = vla.home pose in the simulator
+    home_gripper_m: 0.07
+    max_opening_m: 0.07
+cameras:
+  - {name: top, input: top_color, size: [320, 240]}
+  - {name: angle, input: angle_color, size: [320, 240]}
+  - {name: hand, input: hand_color, size: [320, 240]}
+dataset:
+  root: ~/.PhyAgentOS/vla/datasets
+  name: sim_piper
+  use_videos: true
+  image_writer_threads: 4     # per camera; HARDWARE-LIMITED (laptop): raise to 8 on the workstation
+  encoder_threads: 2          # video encoder; HARDWARE-LIMITED (laptop): 4 on the workstation
+tasks:
+  - "move the arm"
+teleop:
+  max_joint_speed: 2.0
+  home_joint_speed: 0.6
+  speeds: {lin: 0.08, rot_deg: 45.0, grip: 0.06, slow: 0.3}

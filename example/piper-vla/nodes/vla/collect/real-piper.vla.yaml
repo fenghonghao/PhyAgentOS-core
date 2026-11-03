@@ -1,0 +1,26 @@
+# Data layout + teleop for the single PIPER booth. The SAME arms/cameras/fps block must be used by
+# profiles/real-piper/vla_policy.yaml (training and inference read identical inputs).
+fps: 30
+arms:
+  left:                                              # arm name (driver inputs left_*)
+    urdf: ../../../assets/robots/piper/piper_with_gripper.urdf
+    home_joints: [0.0, 0.5, -0.02, 0.0, 0.0, 0.0]   # = vla.home pose: every demonstration starts here
+    home_gripper_m: 0.07                             # episodes start with the gripper open
+    max_opening_m: 0.07                              # confirm the fitted gripper's stroke on site
+cameras:                      # color only; 640x480 from the Orbbec nodes, stored at 320x240
+  - {name: head, input: head_color, size: [320, 240]}
+  - {name: wrist, input: wrist_color, size: [320, 240]}
+dataset:
+  root: ~/.PhyAgentOS/vla/datasets
+  name: piper_single
+  use_videos: true
+  image_writer_threads: 4     # per camera; HARDWARE-LIMITED (laptop): raise to 8 on the workstation
+  encoder_threads: 2          # video encoder; HARDWARE-LIMITED (laptop): 4 on the workstation
+tasks:                        # F1..F9 select; collect.sh --task adds more
+  - "put the target object into the container"
+  - "sort the blocks and the fruits into two groups"
+teleop:
+  max_joint_speed: 2.0        # rad/s clamp on teleop commands
+  home_joint_speed: 0.6       # rad/s for the H (home) key
+  control_yaw_deg: {left: 0.0}   # rotate the W/A/S/D frame (e.g. 180 if you face the arm)
+  speeds: {lin: 0.08, rot_deg: 45.0, grip: 0.06, slow: 0.3}

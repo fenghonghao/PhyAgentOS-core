@@ -1,0 +1,50 @@
+# piper-vla in MuJoCo: the learned policy commands the simulated arm directly.
+# gateway <-> vla_server (Forge tools) -> vla_policy (LeRobot policy, homing) -> mujoco_sim.
+nodes:
+  - id: gateway
+    path: ${FORGE_RUNTIME_BIN}/gateway
+    args: --config gateway.yaml
+    inputs:
+      tick: dora/timer/millis/50
+      vla_tool_in: {source: vla_server/tool_out, queue_size: 1000}
+    outputs:
+      - tool_response
+      - vla_tool_out
+
+  - id: vla_server
+    path: ${PAOS_SKILL_ROOT}/nodes/run_vla.sh
+    args: tool_server --config vla_policy.yaml
+    inputs:
+      tick: dora/timer/millis/50
+      tool_in: {source: gateway/vla_tool_out, queue_size: 1000}
+      policy_status: {source: vla_policy/policy_status, queue_size: 10}
+    outputs:
+      - tool_out
+      - policy_cmd
+
+  - id: vla_policy
+    path: ${PAOS_SKILL_ROOT}/nodes/run_vla.sh
+    args: policy_node --config vla_policy.yaml
+    inputs:
+      tick: dora/timer/millis/33
+      policy_cmd: {source: vla_server/policy_cmd, queue_size: 100}
+      left_state: {source: mujoco/proprio_state, queue_size: 1}
+      top_color: {source: mujoco/image/top, queue_size: 1}
+      angle_color: {source: mujoco/image/angle, queue_size: 1}
+      hand_color: {source: mujoco/image/hand, queue_size: 1}
+    outputs:
+      - left_command
+      - policy_status
+
+  - id: mujoco
+    path: ${FORGE_RUNTIME_BIN}/mujoco_sim
+    args: --config simulator.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      action/left: {source: vla_policy/left_command, queue_size: 10}
+    outputs:
+      - proprio_state
+      - image/hand
+      - image/top
+      - image/angle
+      - image/left_pillar

@@ -1,0 +1,64 @@
+# piper-vla on the single PIPER booth: the learned policy commands the driver directly.
+# gateway <-> vla_server (Forge tools) -> vla_policy (LeRobot policy, homing) -> PIPER driver;
+# head + wrist Orbbec cameras feed the policy.
+nodes:
+  - id: gateway
+    path: ${FORGE_RUNTIME_BIN}/gateway
+    args: --config gateway.yaml
+    inputs:
+      tick: dora/timer/millis/50
+      vla_tool_in: {source: vla_server/tool_out, queue_size: 1000}
+    outputs:
+      - tool_response
+      - vla_tool_out
+
+  - id: vla_server
+    path: ${PAOS_SKILL_ROOT}/nodes/run_vla.sh
+    args: tool_server --config vla_policy.yaml
+    inputs:
+      tick: dora/timer/millis/50
+      tool_in: {source: gateway/vla_tool_out, queue_size: 1000}
+      policy_status: {source: vla_policy/policy_status, queue_size: 10}
+    outputs:
+      - tool_out
+      - policy_cmd
+
+  - id: vla_policy
+    path: ${PAOS_SKILL_ROOT}/nodes/run_vla.sh
+    args: policy_node --config vla_policy.yaml
+    inputs:
+      tick: dora/timer/millis/33
+      policy_cmd: {source: vla_server/policy_cmd, queue_size: 100}
+      left_state: {source: piper/state, queue_size: 1}
+      head_color: {source: cam_head/image/color, queue_size: 1}
+      wrist_color: {source: cam_wrist/image/color, queue_size: 1}
+    outputs:
+      - left_command
+      - policy_status
+
+  - id: piper
+    path: ${FORGE_RUNTIME_BIN}/robots_agilex_piper
+    args: --config piper.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      action: {source: vla_policy/left_command, queue_size: 10}
+    outputs:
+      - state
+
+  - id: cam_head
+    path: ${PAOS_SKILL_ROOT}/nodes/run_camera.sh
+    args: orbbec --config camera_head.yaml
+    inputs:
+      tick: dora/timer/millis/33
+    outputs:
+      - image/color
+      - image/depth
+
+  - id: cam_wrist
+    path: ${PAOS_SKILL_ROOT}/nodes/run_camera.sh
+    args: orbbec --config camera_wrist.yaml
+    inputs:
+      tick: dora/timer/millis/33
+    outputs:
+      - image/color
+      - image/depth

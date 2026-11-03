@@ -1,0 +1,65 @@
+# Teleop collection on the dual PIPER rig: 2 drivers + 3 color cameras + collect node.
+# Rendered by collect.sh (placeholders @...@ -> absolute paths), run with `dora run`.
+nodes:
+  - id: piper_left
+    path: "@PIPER_DRIVER@"
+    args: --config @PROFILE@/piper_left.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      action/teleop: {source: collect/left_command, queue_size: 1}
+    outputs:
+      - state
+
+  - id: piper_right
+    path: "@PIPER_DRIVER@"
+    args: --config @PROFILE@/piper_right.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      action/teleop: {source: collect/right_command, queue_size: 1}
+    outputs:
+      - state
+
+  - id: cam_head
+    path: "@NODES@/run_camera.sh"
+    args: orbbec --config @PROFILE@/camera_head.yaml
+    inputs:
+      tick: dora/timer/millis/33
+    outputs:
+      - image/color
+      - image/depth
+
+  - id: cam_wrist_left
+    path: "@NODES@/run_camera.sh"
+    args: orbbec --config @PROFILE@/camera_wrist_left.yaml
+    inputs:
+      tick: dora/timer/millis/33
+    outputs:
+      - image/color
+      - image/depth
+
+  - id: cam_wrist_right
+    path: "@NODES@/run_camera.sh"
+    args: orbbec --config @PROFILE@/camera_wrist_right.yaml
+    inputs:
+      tick: dora/timer/millis/33
+    outputs:
+      - image/color
+      - image/depth
+
+  - id: collect
+    path: "@NODES@/run_vla.sh"
+    args: collect_node --config @HERE@/real-piper-dual.vla.yaml
+    env:
+      DISPLAY: "@DISPLAY@"
+      VLA_DATASET: "@DATASET@"
+      VLA_TASKS: "@TASKS@"
+    inputs:
+      tick: dora/timer/millis/33
+      left_state: {source: piper_left/state, queue_size: 1}
+      right_state: {source: piper_right/state, queue_size: 1}
+      head_color: {source: cam_head/image/color, queue_size: 1}
+      wrist_left_color: {source: cam_wrist_left/image/color, queue_size: 1}
+      wrist_right_color: {source: cam_wrist_right/image/color, queue_size: 1}
+    outputs:
+      - left_command
+      - right_command

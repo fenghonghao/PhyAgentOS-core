@@ -1,0 +1,20 @@
+# AgileX PIPER driver (robots_agilex_piper v1.1.3), left arm.
+# CAN interface: name it with piper_sdk can_activate.sh by USB port so left/right never swap,
+# then confirm with: robots_agilex_piper test can_left   (gripper opens/closes)
+port: can_left
+is_follower: true
+debug: false
+# hardware speed percent for normal actions; first real run 30, raise on site
+motion_speed_percent: 30
+# The driver moves here right after connecting and before Dora starts.
+# joint3 upper limit is 0: keep -0.02 so encoder drift does not put the start state out of limits.
+# CHECK ON SITE that this pose is collision-free for both arms.
+positions:
+  initial:
+    joint2: 0.5
+    joint3: -0.02
+    gripper: 0.02
+  # on stop the driver moves here and closes to this opening, then drops CAN (no disable)
+  reset:
+    joint5: 0.3
+    gripper: 0.02

@@ -1,0 +1,44 @@
+# Teleop collection in the single PIPER booth: driver + 2 color cameras + collect node.
+# Rendered by collect.sh (placeholders @...@ -> absolute paths), run with `dora run`.
+nodes:
+  - id: piper
+    path: "@PIPER_DRIVER@"
+    args: --config @PROFILE@/piper.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      action/teleop: {source: collect/left_command, queue_size: 1}
+    outputs:
+      - state
+
+  - id: cam_head
+    path: "@NODES@/run_camera.sh"
+    args: orbbec --config @PROFILE@/camera_head.yaml
+    inputs:
+      tick: dora/timer/millis/33
+    outputs:
+      - image/color
+      - image/depth
+
+  - id: cam_wrist
+    path: "@NODES@/run_camera.sh"
+    args: orbbec --config @PROFILE@/camera_wrist.yaml
+    inputs:
+      tick: dora/timer/millis/33
+    outputs:
+      - image/color
+      - image/depth
+
+  - id: collect
+    path: "@NODES@/run_vla.sh"
+    args: collect_node --config @HERE@/real-piper.vla.yaml
+    env:
+      DISPLAY: "@DISPLAY@"
+      VLA_DATASET: "@DATASET@"
+      VLA_TASKS: "@TASKS@"
+    inputs:
+      tick: dora/timer/millis/33
+      left_state: {source: piper/state, queue_size: 1}
+      head_color: {source: cam_head/image/color, queue_size: 1}
+      wrist_color: {source: cam_wrist/image/color, queue_size: 1}
+    outputs:
+      - left_command

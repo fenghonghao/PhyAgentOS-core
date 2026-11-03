@@ -1,0 +1,16 @@
+# Orbbec camera "head" (orbbec_camera v1.1.0). Fill device_serial on site:
+#   ~/.PhyAgentOS/camera-nodes/orbbec_camera-v1.1.0-ubuntu20.04-x86_64/orbbec_camera list-devices --json
+# device_serial: "CP0000000000"
+device_index: 0
+color:
+  data_flow: {width: 640, height: 480, fps: 30, format: rgb8}
+depth:
+  data_flow: {enabled: true, width: 640, height: 400, fps: 30, format: y16}
+ir:
+  data_flow: {enabled: false}
+align_mode: sw            # depth aligned to color: one pixel grid, one intrinsics matrix
+prewarm_frames: 10
+connect_delay_ms: 0  # stagger USB enumeration across the two cameras
+capture_process: isolated
+output_color: image/color
+output_depth: image/depth

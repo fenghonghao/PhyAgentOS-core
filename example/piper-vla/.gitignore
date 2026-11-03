@@ -1,0 +1,9 @@
+# generated locally
+profiles/*/dataflow.local.yaml
+profiles/*/collect.local.yaml
+profiles/*/out/
+nodes/vla/collect/*.local.yaml
+dev/*.log
+dev/*.jsonl
+__pycache__/
+.pytest_cache/

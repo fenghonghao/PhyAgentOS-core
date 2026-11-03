@@ -1,0 +1,74 @@
+# GENERATED from profiles/real-piper-dual/skill_server.yaml + policy.enabled (scripts/make_vla_profile.py)
+arms:
+  left:
+    urdf: ../../assets/robots/piper/piper_with_gripper.urdf
+    base_xyz:
+    - 0.0
+    - 0.3
+    - 0.0
+    base_rpy_deg:
+    - 0.0
+    - 0.0
+    - 0.0
+    home_joints:
+    - 0.0
+    - 0.5
+    - -0.02
+    - 0.0
+    - 0.0
+    - 0.0
+    max_opening_m: 0.07
+  right:
+    urdf: ../../assets/robots/piper/piper_with_gripper.urdf
+    base_xyz:
+    - 0.0
+    - -0.3
+    - 0.0
+    base_rpy_deg:
+    - 0.0
+    - 0.0
+    - 0.0
+    home_joints:
+    - 0.0
+    - 0.5
+    - -0.02
+    - 0.0
+    - 0.0
+    - 0.0
+    max_opening_m: 0.07
+motion:
+  velocity_scale: 0.5
+  acceleration_scale: 0.5
+  line_step_m: 0.02
+  auto_line_max_m: 0.12
+robot:
+  table_z: 0.0
+  head_camera: head
+  wrist_cameras:
+    left: wrist_left
+    right: wrist_right
+  topdown_max_z: 0.14
+  observe_height_m: 0.25
+  wrist_cam_offset:
+  - 0.0
+  - 0.0
+  - 0.08
+  arm_conflict_min_dist_m: 0.12
+  handover_xyz:
+  - 0.3
+  - 0.0
+  - 0.14
+  handover_table_xy:
+  - 0.3
+  - 0.0
+  deadline_file: /tmp/paos_scene_deadline
+ledger_path: ~/.PhyAgentOS/logs/piper-dual-tabletop/ledger.jsonl
+cameras: []
+segmenter:
+  kind: sam3
+  model_dir: ~/.PhyAgentOS/models/sam3
+  device: cuda
+  dtype: float16
+  threshold: 0.3
+policy:
+  enabled: true

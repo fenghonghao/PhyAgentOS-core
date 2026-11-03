@@ -1,0 +1,30 @@
+# Teleop collection in MuJoCo (single arm). Rendered by collect.sh, run with `dora run`.
+nodes:
+  - id: mujoco
+    path: "@MUJOCO_SIM@"
+    args: --config @SIMPROFILE@/simulator.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      action/teleop: {source: collect/left_command, queue_size: 1}
+    outputs:
+      - proprio_state
+      - image/hand
+      - image/top
+      - image/angle
+      - image/left_pillar
+
+  - id: collect
+    path: "@NODES@/run_vla.sh"
+    args: collect_node --config @HERE@/sim-piper.vla.yaml
+    env:
+      DISPLAY: "@DISPLAY@"
+      VLA_DATASET: "@DATASET@"
+      VLA_TASKS: "@TASKS@"
+    inputs:
+      tick: dora/timer/millis/33
+      left_state: {source: mujoco/proprio_state, queue_size: 1}
+      top_color: {source: mujoco/image/top, queue_size: 1}
+      angle_color: {source: mujoco/image/angle, queue_size: 1}
+      hand_color: {source: mujoco/image/hand, queue_size: 1}
+    outputs:
+      - left_command

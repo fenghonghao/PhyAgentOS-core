@@ -1,0 +1,108 @@
+host: 127.0.0.1
+port: 19003
+joint_order: []
+image_input_ids: []
+
+readiness:
+  require_proprio_state: false
+  require_images: false
+
+agent:
+  enabled: false
+  action_manifests: []
+
+tools:
+  enabled: true
+  lease_ttl_ms: 3000
+  # Action deadline far beyond any scene so it never fires: only the model ends a scene (or the
+  # referee stops the robot). Callers must not pass timeout_ms.
+  invoke_timeout_ms: 600000
+  request_input_id: tool_request
+  response_output_id: tool_response
+  specs:
+    - tool_id: vla.policies
+      implementation_id: piper.vla
+      endpoint_id: vla.server
+      operation: policies
+      semantics: query
+      description: >-
+        List the learned policies on this robot: name, state (loading / ready / error), the task
+        and scene each was trained on (description), and its instruction text (task).
+      input_schema: {type: object, additionalProperties: false, properties: {}}
+      output_schema:
+        type: object
+        required: [policies]
+        properties:
+          policies: {type: array}
+      readiness: []
+    - tool_id: vla.state
+      implementation_id: piper.vla
+      endpoint_id: vla.server
+      operation: state
+      semantics: query
+      description: >-
+        Current joint positions (rad) and gripper opening (m) per arm, plus the policy run or
+        homing in progress, if any.
+      input_schema: {type: object, additionalProperties: false, properties: {}}
+      output_schema:
+        type: object
+        required: [joints, gripper_width_m]
+        properties:
+          joints: {type: object}
+          gripper_width_m: {type: object}
+          run: {type: [object, "null"]}
+          home: {type: [object, "null"]}
+      readiness: []
+    - tool_id: vla.home
+      implementation_id: piper.vla
+      endpoint_id: vla.server
+      operation: home
+      semantics: action
+      description: >-
+        Move the arm along a smooth joint path to the start pose of the demonstrations and open
+        the gripper. Run it before a policy.
+      input_schema: {type: object, additionalProperties: false, properties: {}}
+      output_schema:
+        type: object
+        required: [reached, elapsed_s]
+        properties:
+          reached: {type: boolean}
+          error: {type: [string, "null"]}
+          elapsed_s: {type: number}
+      readiness: []
+    - tool_id: vla.run
+      implementation_id: piper.vla
+      endpoint_id: vla.server
+      operation: run
+      semantics: action
+      description: >-
+        Let learned policy `policy` drive the arm from the camera images for `seconds`, then hold
+        still. `task` is the instruction text for language-conditioned policies (pi0.5). The
+        policy does not know when the task is done: you choose `seconds`.
+      input_schema:
+        type: object
+        additionalProperties: false
+        required: [policy, seconds]
+        properties:
+          policy: {type: string, minLength: 1}
+          seconds: {type: number, exclusiveMinimum: 0}
+          task: {type: string}
+      output_schema:
+        type: object
+        required: [policy, steps]
+        properties:
+          policy: {type: string}
+          task: {type: string}
+          seconds: {type: number}
+          steps: {type: integer, minimum: 0}
+          skipped: {type: integer, minimum: 0}
+          rate_hz: {type: number}
+          infer_ms: {type: number}
+          error: {type: [string, "null"]}
+          cancelled: {type: boolean}
+          gripper_width_m: {type: object}
+      readiness: []
+  providers:
+    - endpoint_id: vla.server
+      input_id: vla_tool_in
+      output_id: vla_tool_out
