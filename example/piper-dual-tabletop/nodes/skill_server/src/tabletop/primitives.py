@@ -27,7 +27,7 @@ from . import geometry as geo
 from . import vision as vis
 from .actions import ArmActions
 from .backend import ArmBackend, Detection, Frame, Perception
-from .symbols import MAX_PIECE_M, distinct, load_templates, read_symbol, table_grid
+from .symbols import MAX_PIECE_M, colour_outline, distinct, load_templates, read_symbol, table_grid
 from .types import Cancelled, Capture, RobotFault, Sight
 
 THIN_M = 0.02  # an object lower than this is measured by its mask, with the height from depth
@@ -56,14 +56,14 @@ class RobotConfig:
     # pick / place / drag
     approach_m: float = 0.08      # come in along the fingers from this far back
     approach_tilts_deg: list[float] = field(default_factory=lambda: [0.0, 15.0, 25.0, 40.0, 55.0, 70.0])  # smallest that reaches
-    place_gap_m: float = 0.01     # place on the table: object bottom this far above it when released
+    place_gap_m: float = 0.002     # place on the table: object bottom this far above it when released
     drop_gap_m: float = 0.03      # place in a container: object bottom this far above its rim
     release_open_m: float = 0.015  # let go by opening this much, so the fingers do not push neighbours
     # how the judges read an arrangement (equation task): heading (deg, world) the top of a
     # printed symbol must point to, and the heading of the reading direction (left -> right).
     # Default: judges stand in front of the table, facing the arm. CONFIRM ON SITE.
-    read_up_deg: float = 180.0
-    read_right_deg: float = 90.0
+    read_up_deg: float = 0.0
+    read_right_deg: float = -90.0
 
 
 class _Ledger:
@@ -87,6 +87,12 @@ def _summary(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_summary(v) for v in value]
     return value
+
+
+def _piece_images() -> dict[str, str]:
+    """A picture of each number and symbol piece, upright, by what it shows."""
+    names = {"plus": "+", "minus": "-", "times": "×", "divide": "÷", "equals": "="}
+    return {names.get(p.stem, p.stem): str(p) for p in sorted(Path(__file__).with_name("piece_images").glob("*.jpg"))}
 
 
 class Robot(ArmActions):
@@ -129,6 +135,8 @@ class Robot(ArmActions):
             "TABLE_Z": self.cfg.table_z,
             "TCP_FLOOR_Z": self.cfg.table_z if floor is None else floor,
             "MAX_OPENING_M": self.arms_backend.max_opening_m,
+            "PIECE_CHART": str(Path(__file__).with_name("piece_chart.jpg")),
+            "PIECE_IMAGES": _piece_images(),
             "READ_UP_DEG": self.cfg.read_up_deg,
             "READ_RIGHT_DEG": self.cfg.read_right_deg,
         }
@@ -219,7 +227,12 @@ class Robot(ArmActions):
         reading = None
         if self.symbol_templates and max(fp.size[:2]) <= MAX_PIECE_M:
             grid = table_grid(frame.K, frame.T_wc, detection.mask, float(fp.top_z))
-            reading = read_symbol(color, grid, self.symbol_templates)
+            colour_grid = None
+            if frame.full is not None:  # the camera's own image is finer than the one searched
+                own = frame.full
+                colour_grid = table_grid(own.K, own.T_wc, colour_outline(own.rgb, detection.mask, color, frame.window),
+                                         float(fp.top_z))
+            reading = read_symbol(color, grid, self.symbol_templates, colour_grid)
         return Sight(text=text, score=float(detection.score), camera=frame.camera,
                      pixel=[int(p) for p in frame.full_pixel(int(v), int(u))],
                      center_xyz=[float(x) for x in fp.center_xyz], top_z=float(fp.top_z),

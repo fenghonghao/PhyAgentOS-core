@@ -29,7 +29,7 @@ robot:
   # TCP targets outside are refused (reason outside_workspace). MEASURE the panels and the pole:
   # workspace: {x: [0.12, 0.55], y: [-0.35, 0.35], z_max: 0.40}
   approach_m: 0.08                     # hover above grasp / release points
-  place_gap_m: 0.01                    # place on the table: object bottom above it when released
+  place_gap_m: 0.002                    # place on the table: object bottom above it when released
   drop_gap_m: 0.03                     # place in a container: object bottom above its rim when released
   deadline_file: /tmp/paos_scene_deadline
 ledger_path: ~/.PhyAgentOS/logs/piper-dual-tabletop/ledger.jsonl

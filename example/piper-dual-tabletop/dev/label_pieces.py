@@ -298,7 +298,7 @@ td,th{padding:2px 10px;border-bottom:1px solid #ddd;text-align:left}
 <button onclick="post('/verify')">打乱后验证</button>
 <span id="msg"></span>
 </header>
-<div style="padding:8px 14px" class="hint">拍照前：拿走标定板和积木，块摆开、互不接触（间距约 3 cm），字头都朝相机画面下方（机械臂底座那一侧），这里看到的就是正的。标注：填数字或符号；数字和 ÷ 看到不正就拖正（滚轮微调）；+ × - = 不用转。字是反的（块背面朝上）点 镜像。× 可打 x，÷ 可打 /。</div>
+<div style="padding:8px 14px" class="hint">拍照前：拿走标定板和积木，块摆开、互不接触（间距约 3 cm），字头都朝相机画面上方（远离机械臂底座那一侧），这里看到的就是正的。标注：填数字或符号；数字和 ÷ 看到不正就拖正（滚轮微调）；+ × - = 不用转。字是反的（块背面朝上）点 镜像。× 可打 x，÷ 可打 /。</div>
 <div id="verify"></div>
 <div id="cards"></div>
 <script>

@@ -1,6 +1,7 @@
 """Reading pieces by outline and colour against templates. The shapes are hand-built on the same
 grid the real masks are put on; the colours are the ones measured on the real pieces."""
 
+import json
 import math
 
 import numpy as np
@@ -173,3 +174,91 @@ def test_model_code_can_set_or_correct_a_symbol():
                  "unknown.symbol = '18'\nunknown.top_deg = 90.0\nunknown.top_every_deg = 360.0\nprint(unknown)")
     assert out["ok"], out
     assert "symbol='18'" in out["output"] and "top_deg=90.0" in out["output"]
+
+
+# ---------------------------------------------------------------- the second round: outlines by colour
+
+WINDOW = (320, 60, 1280, 960, 2)
+ROSE = [150, 60, 80]
+
+
+def disc(holes=(), radius=0.005):
+    """A disc of 3 cm with round holes, centred on the grid."""
+    out = np.hypot(X, Y) <= 0.015
+    for hx, hy in holes:
+        out &= np.hypot(X - hx, Y - hy) > radius
+    return out
+
+
+ONE_HOLE = disc([(0.0, 0.007)])
+TWO_HOLES = disc([(0.0, 0.007), (0.0, -0.007)])
+SAME_MASK = disc()  # a mask fills the holes in: the masks of these two are the same
+
+
+def two_rounds():
+    return [make_template("6", ROSE, SAME_MASK, 90.0, every_deg=360.0),
+            make_template("8", ROSE, SAME_MASK, 90.0, every_deg=180.0),
+            make_template("6", ROSE, ONE_HOLE, 90.0, every_deg=360.0, outline="colour"),
+            make_template("8", ROSE, TWO_HOLES, 90.0, every_deg=180.0, outline="colour")]
+
+
+def test_a_mask_alone_cannot_tell_them_apart():
+    assert sym.read_symbol(ROSE, SAME_MASK, two_rounds()) is None
+
+
+def test_the_colour_outline_tells_them_apart():
+    reading = sym.read_symbol(ROSE, SAME_MASK, two_rounds(), colour_grid=TWO_HOLES)
+    assert reading.symbol == "8" and reading.every_deg == 180.0 and reading.top_deg is not None
+
+
+def test_a_colour_outline_that_fits_both_about_equally_stays_unread():
+    between = ONE_HOLE & disc([(0.0, -0.007)], radius=0.0035)  # half the second hole
+    assert sym.read_symbol(ROSE, SAME_MASK, two_rounds(), colour_grid=between) is None
+
+
+def test_a_sure_mask_needs_no_colour_outline():
+    templates = [make_template("7", BLUE, shape(seven), 90.0, every_deg=360.0)]
+    reading = sym.read_symbol(BLUE, shape(seven, 40.0), templates)
+    assert reading.symbol == "7" and off(reading.top_deg, 130.0) < 6.0
+
+
+def test_a_shape_that_looks_the_same_upside_down_has_no_sure_direction_from_its_mask():
+    bar_like = shape(bar(0.036, 0.013))
+    templates = [make_template("11", BLUE, bar_like, 90.0, every_deg=360.0)]
+    assert sym.read_symbol(BLUE, bar_like, templates) is None
+
+
+def test_the_symbol_comes_without_a_direction_when_neither_outline_is_sure_of_it():
+    round_piece = disc()
+    templates = [make_template("6", ROSE, round_piece, 90.0, every_deg=360.0),
+                 make_template("6", ROSE, disc([(0.0, 0.0)]), 90.0, every_deg=360.0, outline="colour")]
+    reading = sym.read_symbol(ROSE, round_piece, templates, colour_grid=disc([(0.0, 0.0)]))
+    assert reading.symbol == "6" and reading.top_deg is None
+
+
+def test_the_direction_comes_from_the_colour_outline_when_only_that_is_sure():
+    templates = [make_template("6", ROSE, SAME_MASK, 90.0, every_deg=360.0),
+                 make_template("6", ROSE, ONE_HOLE, 90.0, every_deg=360.0, outline="colour")]
+    reading = sym.read_symbol(ROSE, SAME_MASK, templates, colour_grid=ONE_HOLE)
+    assert reading.symbol == "6" and off(reading.top_deg, 90.0) < 3.0
+
+
+def test_colour_outline_keeps_the_hole_a_mask_fills():
+    rgb = np.full((1080, 1920, 3), 225, np.uint8)
+    rr, cc = np.mgrid[0:1080, 0:1920]
+    piece = np.hypot(rr - 540, cc - 960) < 40
+    rgb[piece] = ROSE
+    rgb[np.hypot(rr - 540, cc - 960) < 12] = (40, 20, 25)  # the hole, dark inside
+    small = np.hypot(np.arange(480)[:, None] * 2 + 60 - 540, np.arange(640)[None, :] * 2 + 320 - 960) < 40
+    out = sym.colour_outline(rgb, small, ROSE, WINDOW)
+    assert out.shape == (1080, 1920)
+    assert out[540, 960 + 26] and not out[540, 960]    # piece kept, hole out
+    assert not out[540, 960 + 60]                      # the table out
+
+
+def test_templates_keep_their_kind_of_outline_through_the_file(tmp_path):
+    path = tmp_path / "t.json"
+    path.write_text(json.dumps([t.to_json() for t in two_rounds()]), encoding="utf-8")
+    loaded = sym.load_templates(path)
+    assert [t.outline for t in loaded] == ["mask", "mask", "colour", "colour"]
+    assert np.array_equal(loaded[2].grid, two_rounds()[2].grid)

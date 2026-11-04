@@ -1,13 +1,9 @@
+# The gripper node (nodes/skill_server/src/gripper_stream.py).
 joint_name: gripper
-coordinate_type: prismatic
 min_position: 0.0
 max_position: 0.105
 
-control_period_ms: 20
-feedback_timeout_ms: 300
+feedback_timeout_ms: 300  # stale joint state = driver fault (not a time limit on the task)
 goal_tolerance: 0.001
 stall_velocity_threshold: 0.0005
-stall_timeout_ms: 1500
-allow_stalling: true  # closing on an object is the normal end of a grasp
-goal_timeout_ms: 600000  # no time-based abort (scene rule)
-terminal_history_size: 128
+stall_timeout_ms: 250  # stopped this long = closed on something; at 20 mm/s the target is then 5 mm past the fingers

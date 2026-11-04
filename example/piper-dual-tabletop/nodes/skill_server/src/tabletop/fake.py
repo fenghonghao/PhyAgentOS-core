@@ -181,7 +181,7 @@ class FakeWorld(ArmBackend, Perception):
                 z = max(z, b.top)
         return z
 
-    def grip(self, width_m):
+    def grip(self, width_m, max_velocity=None):
         with self._lock:
             a = self.a
             if a.held:

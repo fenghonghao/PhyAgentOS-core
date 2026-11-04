@@ -164,7 +164,7 @@ the object's width + 3 cm, up to 10 cm). Reasons:
 `tilt_deg`, `yaw_deg`) — puts the held object down: moves above, straight down, opens a little,
 straight back up. It does not ask whether the fingers hold anything. Reason: `unreachable` (it stays
 held).
-- `target`: `[x, y]` (its bottom ends 1 cm above the table), or a container's Sight (over its centre,
+- `target`: `[x, y]` (its bottom ends 2 mm above the table, so it does not bounce), or a container's Sight (over its centre,
   its bottom 3 cm above `top_z`; the gripper stays above the rim).
 - `bottom_z`: the height of the object's bottom when let go, instead of those. Over a container keep
   it at least 3 cm above the container's `top_z`, as the default does: a leaning finger can reach 1 to
@@ -230,8 +230,10 @@ Highest TCP z straight ahead, calculated from the arm's geometry (other directio
 
 Leaning 70 degrees it released a fruit at 0.71 m from the base, 0.23 m high, into a real box.
 
-`set_gripper(width_m) -> Grip` (`width_m`, `holding`) — moves the fingers to an opening, 0 = closed,
-`MAX_OPENING_M` = open (10 cm). `holding`: they stopped wider than asked, so something is between
+`set_gripper(width_m, speed_m_s=None) -> Grip` (`width_m`, `holding`) — moves the fingers to an opening,
+0 = closed, `MAX_OPENING_M` = open (10 cm). `speed_m_s`: how fast the opening may change, default full
+speed; closing on a light object by hand, use 0.02 (`pick` and `drag` already close that way).
+`holding`: they stopped wider than asked, so something is between
 them; it does not say what. `home()` — back to the start pose, out of the head camera's way; the
 gripper keeps its opening. `state()` — `tcp_xyz`, `yaw_deg`, `tilt_deg`, `joints`, `gripper_width_m`,
 `holding`. `time_left()` — seconds left in the scene (information only).
@@ -409,60 +411,73 @@ show("head")
 operator and the equals sign in one row: "number op number = number" or "number = number op
 number". 50 for a complete, clearly readable row, another 50 if it is mathematically correct.
 
+**Time decides this task.** Moving one piece takes about 21 s, five take about 105 s, so start moving
+within 60 s of the start. Do not work the geometry out in your head: the reference code finds the
+equation, lays out the row and turns the pieces. If it prints `equation: None`, a reading is wrong or
+missing. A complete row still earns 50, so do not stop: set `row` yourself to three numbers, one operator
+and `=`, for example `row = ["2", "+", "3", "=", "6"]`, naming through `READ` a piece that has no `symbol`.
+
 **The pieces** are cut in the shape of the number or symbol: nothing is printed on them, so read
-the shape. A number can have two digits (18). `locate` compares each piece's outline and colour
-with stored outlines of the real pieces. When one clearly fits, it fills in `symbol` (`+`, `×`, `÷`,
-`-`, `=` or a number as text), `top_deg` (world heading of the symbol's top) and `top_every_deg` (it
-looks the same turned by this much). Otherwise all three are None and you read the piece.
+the shape. Numbers go from 1 to 20. `locate` compares each piece with stored outlines of the real
+pieces and fills in `symbol` (`+`, `×`, `÷`, `-`, `=` or a number as text), `top_deg` (world heading
+of the symbol's top) and `top_every_deg` (it looks the same turned by this much). Trust what it reads.
+- `symbol` None: it could not tell. Block 1 reads the piece again from close up.
+- `top_deg` None: it knows the piece but not which way up. Block 1 reads this one from close up too.
 
-| Symbol | Looks like |
+`show(image=PIECE_CHART)` shows a clear picture of every piece, upright and named, sorted by colour.
+`show(image=PIECE_IMAGES["6"])` shows one piece larger, by what it shows (`"1"` to `"20"`, `"+"`, `"-"`,
+`"×"`, `"÷"`, `"="`). Use them only to choose between two you are unsure of: one long look at enlarged
+pictures of the pieces cost 77 s in a real run. A piece can lie on its back, and then it shows the mirror image. Colours narrow
+it down, and a colour is shared by several pieces:
+
+| Colour | Pieces |
 |---|---|
-| `+` | green, four equal arms |
-| `×` | orange-yellow, the same shape as `+`; only how it lies makes it a `×` |
-| `÷` | pink, like a `+` with two arms shorter |
-| `=` | purple, two bars joined in the middle |
-| `-` | blue, a thin bar |
+| orange | × 4 11 |
+| yellow | 1 5 15 |
+| green | + 2 18 |
+| teal | 10 12 20 |
+| blue | − 3 7 19 |
+| purple | = 9 17 |
+| pink to dark red | ÷ 6 8 13 14 16 |
 
-A 6 is pink and a 9 is purple, so those two are never a question of which way up. You decide in
-the end: set `s.symbol` yourself for a piece with None, and correct one you can see is labelled
-wrongly. There is one of each operator.
+`+` and `×` have the same shape: only how the piece lies makes it one or the other. `÷` is a cross with
+two arms shorter.
+
+**Where the row goes: you choose.** Pick a convenient free place from the head image and the pieces'
+positions, and lay the five pieces out one after another, about 6 cm between centres. The row runs along
+`READ_RIGHT_DEG`, tops to `READ_UP_DEG`. The arm leans by itself as far as a place needs, and that is fine.
+Calculated on the real arm, a piece can be laid down with any turn for x from 0.18 to 0.50 and y up to
+0.48; for x up to 0.46 and y from 0.16 to 0.40 it leans 25 degrees at most. Keep y above 0.08, or the arm
+at home hides the row from the head camera. A slot needs 5.5 cm to any piece that stays
+where it is. With no convenient free place, let the row lie over pieces the equation does not use and
+give each of them a free place in `AWAY`: the code moves them first, about 21 s each.
 
 **Blocks.**
-1. See: `home()`, `locate` the pieces, print their symbols, `show` the numbered head image.
-2. Read: `show` an enlarged tile of each unread piece from the head camera. Read what it shows and
-   where its top points in the tile. If a tile is unclear, or a `top_deg` disagrees with what you
-   see, look from above with the wrist camera (Block 2b, about 5 s a piece): each piece is small in
-   the head camera, and a `top_deg` from it can be wrong, even by half a turn. What you see from
-   above decides; `symbol` read from the wrist image has not been tried on the real pieces. Check
-   you have three numbers and each operator.
-3. Act: find a true equation (÷ must divide exactly), choose a straight row along
-   `READ_RIGHT_DEG`, clear of all pieces, one piece size + 3 cm between centres, and move the
-   five pieces in reading order, turning each so its top points to `READ_UP_DEG`.
-4. Check: `home()`, `show("head")`, read the row from the judges' side.
+1. See and read, all in one block: `home()`, `locate`, print, `show` the numbered head image. Then, for
+   each piece that did not read, move over it and `locate` with the wrist camera, the same matching with
+   more to see (about 6 s a piece). It prints what is still unread.
+2. Only for a piece still unread: ask `look` from close up, with the pieces of its colour as the choices
+   (Block 1b).
+3. Act: fill in `CENTRE`, `READ` for what `look` told you, `AWAY` if the row lies over unused pieces. The
+   code finds a true equation, checks the slots and moves the pieces without going home in between.
+4. Check: `home()`, `show("head")`, read the row as the judges do.
 
-**Pitfalls.** "−" turned 90 degrees looks like "1". Moving five pieces takes most of the time:
-decide the whole row first, then move without detours. A complete row of the right pieces already
-earns half. A big turn while holding can exceed the wrist's range; if `place` with `yaw_deg` fails,
-set the piece down, pick it again and turn the rest.
+**Pitfalls.** "−" turned 90 degrees looks like "1". A complete row of the right pieces already earns
+half, so a piece that cannot be turned is still put in its slot. Grasp the way the code chooses: it
+leaves the wrist room for the turn. A turn the wrist cannot make at once goes in two grasps, about
+21 s more.
 
-**Reference code.**
+**Reference code.** Only the functions of the API exist from the start. `way_round`, `grasp`, `put` and
+the others below exist once a block has defined them, so copy their definitions into your block.
 
 ```python
-# Block 1: see
+# Block 1: see and read; touches nothing
 home()
 pieces = locate("colored number or math symbol piece")
 for i, s in enumerate(pieces, 1):
-    print(i, s.symbol, s.color, np.round(s.center_xyz[:2], 3).tolist(), np.round(s.size, 3).tolist(), s.note)
+    print(i, s.symbol, s.top_deg, s.color, np.round(s.center_xyz[:2], 3).tolist(), np.round(s.size[:2], 3).tolist(), s.note)
 show("head", marks=pieces)
-```
-
-```python
-# Block 2: read the pieces; enlarged tiles from the head camera, nothing moves
 f = capture("head")
-
-def tile(s, half=48, zoom=3):                 # for the head camera; a wrist frame: half=24, zoom=5
-    r, c = s.pixel
-    return f.rgb[max(r - half, 0):r + half, max(c - half, 0):c + half].repeat(zoom, axis=0).repeat(zoom, axis=1)
 
 def up_heading(frame):                        # world heading of "up" in this image
     d = frame.world[:-40, :, :2] - frame.world[40:, :, :2]
@@ -470,30 +485,48 @@ def up_heading(frame):                        # world heading of "up" in this im
     return math.degrees(math.atan2(dy, dx))
 
 up_deg = {i: up_heading(f) for i in range(1, len(pieces) + 1)}   # of the image each piece is read in
-numbers = [i for i, s in enumerate(pieces, 1) if s.symbol is None]
-print("tiles, in this order:", numbers)
-for i in numbers:
-    show(image=tile(pieces[i - 1]))
-```
 
-```python
-# Block 2b, only for a piece in doubt: over it, looking down with the wrist camera; touches nothing
-LOOK = [1]                                    # the pieces to look at
-for i in LOOK:
+def over(s):                                  # leaning 25 degrees the wrist camera looks straight down at the piece, wherever it lies
+    h = math.atan2(s.center_xyz[1], s.center_xyz[0])
+    return move_to([s.center_xyz[0] - 0.04 * math.cos(h), s.center_xyz[1] - 0.04 * math.sin(h), 0.08],
+                   yaw_deg=math.degrees(h) + 90, tilt_deg=25, path="joint")
+
+def unread():
+    return [i for i, s in enumerate(pieces, 1) if s.symbol is None or s.top_deg is None]
+
+for i in unread():                            # the same matching as from the head camera, with more to see
     s = pieces[i - 1]
-    r = move_to([s.center_xyz[0], s.center_xyz[1], 0.09], tilt_deg=0)
+    r = over(s)
     if not r.reached:
         print(i, r.reason)
         continue
-    up_deg[i] = up_heading(capture("wrist"))  # now read this piece's top in this image
-    near = locate("colored number or math symbol piece", camera="wrist")
-    print(i, [(w.symbol, w.top_deg, np.round(w.center_xyz[:2], 3).tolist()) for w in near])
-    show("wrist")
+    near = [w for w in locate("colored number or math symbol piece", camera="wrist")
+            if np.linalg.norm(np.array(w.center_xyz[:2]) - s.center_xyz[:2]) < 0.03]
+    print(i, "from close up:", near[0].symbol if near else None, near[0].top_deg if near else None)
+    if near and near[0].symbol and near[0].top_deg is not None:
+        s.symbol, s.top_deg, s.top_every_deg = near[0].symbol, near[0].top_deg, near[0].top_every_deg
+print("still unread:", unread())
 ```
 
 ```python
-# Block 3: act, after reading the pieces
-READ = {1: ("7", "up")}                       # piece -> (what it shows, where its top points in the image)
+# Block 1b, only for a piece still unread after Block 1: ask look from close up; touches nothing
+LOOK = {}                                     # piece -> the pieces of its colour, from the table above: {1: ["=", "9", "17"]}
+for i, same_colour in LOOK.items():
+    r = over(pieces[i - 1])
+    if not r.reached:
+        print(i, r.reason)
+        continue
+    up_deg[i] = up_heading(capture("wrist"))  # READ below takes its top in this image
+    print(i, "look:", look(f"A flat plastic piece lies in the middle of this image, cut in the shape of a number or a sign, "
+                           f"turned any way. It is one of: {', '.join(same_colour)}. Which one, and which side of the image "
+                           f"does its top point to: up, down, left or right?", camera="wrist"))
+```
+
+```python
+# Block 2: act, after reading
+READ = {}                                     # only what look told you: {1: ("7", "up")}: what it shows, where its top points in the image
+CENTRE = [0.28, 0.20]                         # middle of the row: the free place you chose
+STEP = 0.06                                   # between centres
 SPIN = {"up": 0, "left": 90, "down": 180, "right": -90}
 for i, (symbol, top) in READ.items():         # also corrects a piece you saw labelled wrongly
     s = pieces[i - 1]
@@ -517,34 +550,59 @@ for a, b, c in itertools.permutations([k for k in by_symbol if k.isdigit()], 3):
         break
 print("equation:", " ".join(row) if row else None)
 
-size = max(max(s.size[:2]) for s in pieces)
-step = size + 0.03
 right = np.array([math.cos(math.radians(READ_RIGHT_DEG)), math.sin(math.radians(READ_RIGHT_DEG))])
+slots = {symbol: np.array(CENTRE) + (k - 2) * STEP * right for k, symbol in enumerate(row or [])}
 
-def slots_at(c):
-    return [c + (k - 2) * step * right for k in range(5)]
+def distance_to_slots(s):
+    return min(np.linalg.norm(p - s.center_xyz[:2]) for p in slots.values())
 
-def clear(c):                                 # all 5 slots away from every piece
-    return all(np.linalg.norm(p - s.center_xyz[:2]) > size + 0.02 for p in slots_at(c) for s in pieces)
+in_the_way = [s for s in pieces if s.symbol not in slots and distance_to_slots(s) < 0.055] if slots else []
+print("slots", {k: np.round(v, 3).tolist() for k, v in slots.items()},
+      "in the way:", [(s.symbol, np.round(s.center_xyz[:2], 3).tolist()) for s in in_the_way])
 
-cands = [np.array([x, y]) for x in np.arange(0.22, 0.38, 0.02) for y in np.arange(-0.20, 0.21, 0.02)]
-centre = next((c for c in sorted(cands, key=lambda c: abs(c[1]) + abs(c[0] - 0.30)) if clear(c)), None)
-for k, symbol in enumerate(row or []):
-    s = by_symbol[symbol]
-    r = pick(s, z=TCP_FLOOR_Z if s.grasp_xyz is None else None)         # no depth under a thin piece
+def way_round(s, turn, slot):                 # the closing line to grasp with: the wrist stops 100 degrees from the tangent
+    def off(yaw, xy):
+        return abs((yaw - math.degrees(math.atan2(xy[1], xy[0])) - 90 + 180) % 360 - 180)
+
+    lines = [s.grasp_yaw_deg, s.grasp_yaw_deg + 180]
+    if s.size[0] < 1.4 * s.size[1]:           # about square: it can also be held across the other way
+        lines += [s.grasp_yaw_deg + 90, s.grasp_yaw_deg - 90]
+    return min(lines, key=lambda g: max(off(g, s.center_xyz[:2]), off(g + turn, slot)))
+
+def grasp(s, turn, slot):
+    return pick(s, z=TCP_FLOOR_Z if s.grasp_xyz is None else None, yaw_deg=way_round(s, turn, slot))
+
+def put(s, slot, turn):
+    r = grasp(s, turn, slot)
     if not r.ok:
-        print(symbol, "pick failed", r.reason)
-        continue
-    every = s.top_every_deg
-    turn = (READ_UP_DEG - s.top_deg + every / 2) % every - every / 2    # the smallest turn upright
-    p = place(slots_at(centre)[k], yaw_deg=state().yaw_deg + turn)
-    if not p.ok:                              # cannot turn that far: place it unturned
-        p = place(slots_at(centre)[k])
-    print(symbol, "->", np.round(slots_at(centre)[k], 3), p.ok, p.reason)
+        return r
+    p = place(slot, yaw_deg=r.yaw_deg + turn)
+    if p.ok or not turn:
+        return p
+    p = place(slot, yaw_deg=r.yaw_deg + turn / 2)   # too far for one go: half now, the rest after grasping again
+    if not p.ok:
+        return place(slot)                    # still in its slot, unturned
+    s.center_xyz[:2] = [float(v) for v in slot]
+    s.points = None
+    s.grasp_yaw_deg += turn / 2
+    r = grasp(s, turn / 2, slot)
+    return place(slot, yaw_deg=r.yaw_deg + turn / 2) if r.ok else r
+
+AWAY = []                                     # a free place for each piece in the way, in that order: [[x, y]]
+if len(in_the_way) > len(AWAY):
+    print("nothing moved: give each piece in the way a free place in AWAY, or choose another CENTRE")
+else:
+    for s, spot in zip(in_the_way, AWAY):
+        print("out of the way:", s.symbol, "->", spot, put(s, spot, 0.0))
+    for symbol in sorted(slots, key=lambda k: distance_to_slots(by_symbol[k])):   # first those lying on a slot
+        s, slot = by_symbol[symbol], slots[symbol]
+        every = s.top_every_deg or 360.0
+        turn = 0.0 if s.top_deg is None else (READ_UP_DEG - s.top_deg + every / 2) % every - every / 2   # the smallest
+        print(symbol, "->", np.round(slot, 3).tolist(), "turn", round(turn), put(s, slot, turn))
 ```
 
 ```python
-# Block 4: check
+# Block 3: check
 home()
 show("head")
 ```
@@ -563,5 +621,6 @@ show("head")
 ## Rules
 
 - There is no API for raw joint commands; use the functions above.
-- Never place an object before `pick` returned `ok` (or `state().holding` is True).
-- On `RobotFault`, stop issuing motions and finalize with the fault in the summary.
+- Do not `place` before a `pick`, unless you can see the object hanging from the gripper.
+- On `RobotFault` from the arm or the gripper, stop issuing motions and finalize with the fault in the
+  summary. A camera that stopped is different: act on the Sights you already have (see the cameras above).

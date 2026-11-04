@@ -48,7 +48,8 @@ class Stack(Bus):
             self.publish()
             return "succeeded", SimpleNamespace(error_code="SUCCESS", message="")
         assert output_id.endswith("gripper_goal"), output_id
-        target = GripperCommandGoal.from_arrow(payload).position
+        self.grip_goal = GripperCommandGoal.from_arrow(payload)
+        target = self.grip_goal.position
         self.width = max(target, self.object_width) if target < self.width else target
         self.publish()
         return "succeeded", SimpleNamespace(error_code="SUCCESS", message="", position=self.width)
@@ -211,6 +212,13 @@ def test_grip_reports_where_the_fingers_stopped(b, stack):
     out = b.grip(0.0)
     assert out.width_m == pytest.approx(0.05) and out.fault is None
     assert b.gripper_width() == pytest.approx(0.05)
+
+
+def test_grip_asks_for_the_speed_it_is_given(b, stack):
+    b.grip(0.0, 0.02)
+    assert stack.grip_goal.max_velocity == 0.02 and stack.grip_goal.max_effort is None
+    b.grip(0.06)
+    assert stack.grip_goal.max_velocity is None
 
 
 def test_a_gripper_hardware_fault_is_reported(b, stack):
@@ -391,3 +399,82 @@ def test_a_pick_of_something_tall_from_low_rises_on_the_spot_first(robot, stack,
     first = b._fk_world(np.asarray(stack.history[0][0]))[:3, 3]
     assert first[:2] == pytest.approx([0.30, 0.0], abs=2e-3)
     assert first[2] > 0.15
+
+
+# ---------------------------------------------------------------- the way round of Playbook C on the real arm
+
+def way_round_of_the_manual():
+    text = (Path(__file__).resolve().parents[3] / "SKILL.md").read_text(encoding="utf-8")
+    start = text.index("def way_round(s, turn, slot):")
+    code = text[start:text.index("\ndef grasp(s, turn, slot):", start)]
+    scope = {"math": math}
+    exec(code, scope)  # noqa: S102
+    return scope["way_round"]
+
+
+@pytest.mark.parametrize("slot", [(0.28, 0.32), (0.28, 0.20), (0.28, 0.08), (0.34, 0.14)])
+@pytest.mark.parametrize("at", [(0.35, 0.25), (0.30, 0.05), (0.40, 0.38)])
+def test_a_piece_grasped_the_way_round_can_turn_into_its_slot(at, slot):
+    way_round = way_round_of_the_manual()
+    failed = []
+    for turn in range(-90, 91, 30):                                  # further goes in two grasps
+        s = Stack()
+        s.backend = DoraArmBackend({"left": ArmConfig(name="left", urdf=URDF, home_joints=HOME, max_opening_m=0.10)},
+                                   MotionConfig(), s)
+        s.publish()
+        s.object_width = 0.03
+        robot = Robot(s.backend, None, RobotConfig(tcp_floor_z_m=FLOOR, finger_half_depth_m=0.01))
+        piece = sight(at[0], at[1], top=0.01, width=0.03, yaw=math.degrees(math.atan2(at[1], at[0])) + 60, grasp_below=0.005)
+        r = robot.pick(piece, yaw_deg=way_round(piece, turn, slot))
+        if not r.ok or not robot.place(list(slot), yaw_deg=r.yaw_deg + turn).ok:
+            failed.append(turn)
+    assert not failed, failed
+
+
+# where the pieces lay in a real scene, the farthest 0.59 m from the base, and two more
+@pytest.mark.parametrize("x,y", [(.387, .272), (.319, .311), (.347, .387), (.279, .131), (.300, .205), (.342, .112),
+                                 (.448, .388), (.400, .170), (.25, .05), (.45, .35)])
+def test_the_wrist_camera_gets_over_a_piece_leaning_wherever_it_lies(x, y):
+    import yaml
+
+    from tabletop import geometry as geo
+    from tabletop.perception import CameraConfig
+
+    text = (Path(__file__).resolve().parents[3] / "SKILL.md").read_text(encoding="utf-8")
+    start = text.index("def over(s):")
+    s = Stack()
+    s.backend = DoraArmBackend({"left": ArmConfig(name="left", urdf=URDF, home_joints=HOME, max_opening_m=0.10)},
+                               MotionConfig(), s)
+    s.publish()
+    robot = Robot(s.backend, None, RobotConfig(tcp_floor_z_m=FLOOR, finger_half_depth_m=0.01))
+    scope = {"math": math, "move_to": robot.move_to}
+    exec(text[start:text.index("\ndef unread():", start)], scope)  # noqa: S102
+    r = scope["over"](SimpleNamespace(center_xyz=[x, y, 0.008]))
+    assert r.reached, r
+
+    profile = Path(__file__).resolve().parents[3] / "profiles/real-piper/skill_server.yaml"
+    wrist = next(c for c in yaml.safe_load(profile.read_text(encoding="utf-8"))["cameras"] if c["name"] != "head")
+    camera = CameraConfig(**{k: wrist[k] for k in ("name", "K", "mount", "T_matrix", "T_inverse", "wrist_frame", "xyz", "rpy_deg") if k in wrist})
+    T_world_camera = s.backend._fk_world(np.array(robot.state().joints)) @ camera.T()
+    uv, depth = geo.project(np.array(wrist["K"], float), T_world_camera, np.array([[x, y, 0.008]]))
+    assert abs(uv[0][0] - 320) < 40 and abs(uv[0][1] - 240) < 40, uv     # in the middle of the image
+    assert 0.15 < depth[0] < 0.25, depth
+
+
+@pytest.mark.parametrize("turn", [120, 150, 180, -120, -150, -180])
+@pytest.mark.parametrize("at,slot", [((0.35, 0.25), (0.28, 0.20)), ((0.30, 0.05), (0.28, 0.32)), ((0.40, 0.38), (0.34, 0.14))])
+def test_a_big_turn_ends_in_the_slot_in_one_or_two_grasps(at, slot, turn):
+    text = (Path(__file__).resolve().parents[3] / "SKILL.md").read_text(encoding="utf-8")
+    start = text.index("def way_round(s, turn, slot):")
+    s = Stack()
+    s.backend = DoraArmBackend({"left": ArmConfig(name="left", urdf=URDF, home_joints=HOME, max_opening_m=0.10)},
+                               MotionConfig(), s)
+    s.publish()
+    s.object_width = 0.03
+    robot = Robot(s.backend, None, RobotConfig(tcp_floor_z_m=FLOOR, finger_half_depth_m=0.01))
+    scope = {"math": math, "pick": robot.pick, "place": robot.place, "TCP_FLOOR_Z": FLOOR}
+    exec(text[start:text.index("\nAWAY = ", start)], scope)  # noqa: S102
+    piece = sight(at[0], at[1], top=0.01, width=0.03, yaw=math.degrees(math.atan2(at[1], at[0])) + 60, grasp_below=0.005)
+    p = scope["put"](piece, np.array(slot), float(turn))
+    assert p.ok, p
+    assert robot.arms_backend.tcp_pose()[0][:2] == pytest.approx(list(slot), abs=0.08)

@@ -79,8 +79,9 @@ class ArmBackend(abc.ABC):
         """Run a plan; blocks until it ends. ``cancelled`` is asked between steps."""
 
     @abc.abstractmethod
-    def grip(self, width_m: float) -> GripperOutcome:
-        """Command an opening; returns once the fingers stop."""
+    def grip(self, width_m: float, max_velocity: float | None = None) -> GripperOutcome:
+        """Command an opening; returns once the fingers stop. ``max_velocity``: how fast the opening
+        may change (m/s), default full speed."""
 
     def stop(self) -> None:
         """Best-effort stop of the current motion (used only for explicit cancel)."""

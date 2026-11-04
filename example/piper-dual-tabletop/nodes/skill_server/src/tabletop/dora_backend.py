@@ -1,4 +1,4 @@
-"""ArmBackend over Dora Actions: one motion_server + gripper_action_controller.
+"""ArmBackend over Dora Actions: one motion_server + the gripper node (``gripper_stream``).
 
 Worker threads (model code) never touch the Dora node. They put outgoing messages on the
 ``Bus`` and block on a per-goal event; the Dora main loop drains the bus every tick and
@@ -238,10 +238,10 @@ class DoraArmBackend(ArmBackend):
                 break
         return _outcome(ok, code, msg, self.tcp_pose()[0])
 
-    def grip(self, width_m: float) -> GripperOutcome:
+    def grip(self, width_m: float, max_velocity: float | None = None) -> GripperOutcome:
         from forge_msgs import GripperCommandGoal
 
-        goal = GripperCommandGoal(position=float(width_m), max_velocity=None, max_effort=None)
+        goal = GripperCommandGoal(position=float(width_m), max_velocity=max_velocity, max_effort=None)
         status, result = self.bus.request(f"{self.name}_gripper_goal", goal.to_arrow())
         width = getattr(result, "position", None)
         fault = gripper_fault(status, getattr(result, "error_code", "UNKNOWN"), getattr(result, "message", ""))

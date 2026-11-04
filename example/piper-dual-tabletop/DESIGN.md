@@ -31,7 +31,8 @@ Gateway :19002 ──Python 块──▶ skill_server（Dora 节点）
                                  ├ show ──图片文件路径──▶ 工具结果 outputs.images ──▶ PAOS 主循环把图放进一条 user 消息 ──▶ 主模型
                                  ├ look ──图 + 问题──▶ DeepSeek API（无上下文）
                                  └ 台账、图片文件 → dev/scene_digest.py → 人工改手册
-skill_server ──位姿 / 夹爪目标──▶ motion_server（IK、轨迹）→ 轨迹控制器、夹爪控制器 → PIPER 驱动（CAN）
+skill_server ──位姿──▶ motion_server（IK、轨迹）→ 轨迹控制器 → PIPER 驱动（CAN）
+             ──夹爪目标──▶ 夹爪节点 gripper_stream（每 20 ms 发一次目标）→ PIPER 驱动
 ```
 
 - 执行器：模型代码在受限命名空间里运行。import 只允许 numpy、math、time、itertools、functools、collections、random；不能访问文件、进程、网络、私有属性和帧对象。沙箱与 skill_server 同进程，只防误用，挡不住刻意攻击。
@@ -43,7 +44,7 @@ skill_server ──位姿 / 夹爪目标──▶ motion_server（IK、轨迹）
 |---|---|
 | 看 | `locate(text, camera=) -> list[Sight]`、`show(camera=, marks=, image=)`、`look(question, camera=, marks=, image=, json=)`、`capture(camera=)`（`rgb` + 逐像素世界坐标 `world`） |
 | 拿放 | `pick(target, z=, yaw_deg=, width_m=)`、`place(target, bottom_z=, yaw_deg=)`、`drag(target, to, z=, yaw_deg=, width_m=)` |
-| 动作与状态 | `move_to(xyz, yaw_deg=, tilt_deg=, path=)`、`home()`、`set_gripper(width_m)`、`state()`、`time_left()` |
+| 动作与状态 | `move_to(xyz, yaw_deg=, tilt_deg=, path=)`、`home()`、`set_gripper(width_m, speed_m_s=)`、`state()`、`time_left()` |
 | 常量 | `TABLE_Z`、`TCP_FLOOR_Z`、`MAX_OPENING_M`、`READ_UP_DEG`、`READ_RIGHT_DEG` |
 
 三份任务手册（SKILL.md "Task playbooks"）：A 目标物进容器，B 积木水果分类，C 数字等式。每份有计分要点、步骤、坑和在假世界验证过的参考代码。
@@ -57,6 +58,7 @@ skill_server ──位姿 / 夹爪目标──▶ motion_server（IK、轨迹）
 | `nodes/skill_server/src/tabletop/` | `primitives.py`（配置、命名空间、感知）、`actions.py`（动作原语）、`vision.py`（看图客户端、编号圈）、`perception.py`（相机与 SAM3）、`executor.py`（沙箱）、`dora_node.py`（节点与 Forge 工具端点）、`dora_backend.py`、`kinematics.py`、`geometry.py`、`fake.py`（假世界） |
 | `nodes/skill_server/tests/` | `test_perception_primitives.py` 是感知原语的约定；`test_skill_examples.py` 原样运行三份手册的参考代码（模型看图后的判断用真值代替） |
 | `profiles/real-piper/` | 驱动、运动、两台相机、`skill_server.yaml`（标定、工作区、看图配置） |
+| `nodes/skill_server/src/gripper_stream.py`、`nodes/run_gripper.sh` | 夹爪节点：每 20 ms 发一次目标，闭合可以慢；每个目标的轨迹记在 `gripper_trace.jsonl` |
 | `start.sh`、`run_scene.sh` | 启动钩子（venv、SAM3 权重、CAN、相机）；一场一次的入口 |
 | `scripts/` | `make_bundle.sh`、`fetch_camera_nodes.sh`、`calib_compose.py`、`calibrate/`（相机标定工具和打印用标定板） |
 | `dev/` | `llm_trial_booth.py`（模型照手册写代码的离线试验，还是旧的感知接口，待更新）、`scene_digest.py`（每场摘要）、`gw_run.py`（直连 Gateway）、`legacy/`（旧双臂 profile）；不进包 |
@@ -103,6 +105,7 @@ python3 dev/scene_digest.py                  # 本场一页摘要
 - 11-04 15:10 动作原语上真机（完整驱动链，先 15%、0.25，再 30%、0.5）：1 cm 直线误差 0.1 mm；全关节移动误差 0.4 mm，过冲 ≤0.07°，流式指令异常和 motion_server 选远解的问题都没有再出现。红心块 `pick` 成功（夹持宽度 41.6 mm）；`place` 后重测偏 6.9 mm；数字“8”`drag` 8.7 cm 偏 3.1 mm；“8”带 60° 旋转抓放偏 0.7 mm；杨桃 `place` 进纸箱成功，倾斜 70°、距底座 0.71 m、高 0.23 m 松手。默认速度耗时：`pick` 13.4 s（到上方 5.2、下降 3.2、闭合 1.8、抬起 2.9）、`place` 10.8 s、`home` 4.5 s。
 - 同一轮的问题：心形块第二次被夹时被挤飞约 6 cm（无平行边）；抓杨桃时桃子的测量位置变了约 2.7 cm，很可能是全开的手指蹭到；杨桃有一次在机械臂没靠近时位置变了，原因不明。
 - 11-04 17:30 RSI 第二场（把樱桃和草莓放进箱子）撞翻箱子：放完直接 `pick` 下一件，第一段是一个关节运动，从箱子上方（z≈0.28）直接到低悬停点（z≈0.055），用真实 URDF 重放，夹爪在箱子范围内最低到约 0.10 m（箱顶 0.173 m）。此前的真机路径都从初始位或悬停点出发，没走过这一段。已改成“先在两端较高的高度横移，再下降”，`pick`、`place`、`drag` 共用，重放最低 0.25 m；还没上真机复测。
+- 11-04 夹爪换成 Dora 节点 `gripper_stream`（固件的夹爪指令只有位置和力矩，没有速度；Forge 控制器的配置里也没有限速项）。每 20 ms 发一次目标；`pick`、`drag` 闭合时先全速到物体外 15 mm（真机记录里实际宽度比测量值最多宽 13 mm），再以 20 mm/s 合上；手指停 250 ms 算夹住，之后继续按目标夹紧。离线验证：单元测试；真实 Dora 加模拟驱动，50.9 Hz，间隔中位数 20.0 ms，碰到物体后 0.25 s 结束；Forge 的 `mujoco_sim` 作接收端，手指实测 19.9 mm/s，稳定落后目标约 3 mm，没有误判堵转（所以按速度判定堵转，不按跟踪误差）。真机上还没跑过：平滑度、夹持力是否够、250 ms 是否够、闭合总耗时（估算约 1.1 s，原来 1.78 s）。
 - 未在真机验证：腕部 `locate` 精度、夹持力上限、0.46 m 外倾斜夹扁块、`set_gripper` 之外的取消路径。
 
 ## 9. 经验积累（11-04 公开题）
@@ -111,7 +114,7 @@ python3 dev/scene_digest.py                  # 本场一页摘要
 2. 由人按摘要改对应手册：步骤、坑、参考代码（物品的英文叫法、容器沿高度、夹取深度、摆放间距等）。
 3. 跑 `tests/test_skill_examples.py` 和全部测试，`make_bundle.sh`，remove + install。
 4. 17:00 封存前冻结 SKILL.md。
-5. 提速待测（用户 11-04 定在 RSI 过程中跑）：夹爪 `stall_timeout_ms` 从 1500 调低（每次夹住约省 1 s，要确认仍能夹紧）；`motion.line_step_m` 从 2 cm 放大（每步起停约 0.8 s，要确认直线偏差和不碰邻物）。每改一项，重跑同一道题比较总用时和成功与否。
+5. 提速待测（用户 11-04 定在 RSI 过程中跑）：夹爪 `stall_timeout_ms` 已从 1500 调到 250（要确认仍能夹紧）；`motion.line_step_m` 从 2 cm 放大（每步起停约 0.8 s，要确认直线偏差和不碰邻物）。每改一项，重跑同一道题比较总用时和成功与否。
 
 ## 10. 受本机硬件限制的参数（上 4090 工作站再放开）
 
@@ -128,6 +131,6 @@ python3 dev/scene_digest.py                  # 本场一页摘要
 - 主模型看图只测过简单题的道具；积木和数字块只用任务照片测过提示词。
 - `~/.PhyAgentOS/config.json` 的 `maxTokens` 是 8192，主模型一次思考约 2.5 万字（图片消息那一轮），可能被截断；deepseek 报告里开思考配的是 131072。
 - `place` 进箱改用整个箱子的 `top_z`（含翻边），不再用 `locate("empty space inside the box")`：那个词在同一个箱子上 `top_z` 在 0.06、0.13、0.17 m 之间跳。11-04 模型因此自己传了过低的 `bottom_z`，夹爪进箱把箱子推了约 11 cm，碰容器扣 50。
-- 提速空间：夹爪 `stall_timeout_ms` 1500 让每次夹住多等约 1.5 s；`line_step_m` 2 cm 的起停每步约 0.8 s。
+- 提速空间：`line_step_m` 2 cm 的起停每步约 0.8 s。
 - `look` 不设超时（按"skill 包里禁止超时停止"）；网络卡住时这段代码会一直等，直到裁判停机。
 - 代码审查（11-04 00:00）的未修项、以及"原语整体太冗长、防御过度，待重构"的结论，记在规格文档 `docs/superpowers/specs/2026-11-03-paizhou-track2-robot-api.md` §14。

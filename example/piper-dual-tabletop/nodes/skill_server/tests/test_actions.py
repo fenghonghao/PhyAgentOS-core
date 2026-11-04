@@ -325,7 +325,7 @@ def test_place_sets_the_object_down_and_opens_only_a_little(robot, world):
     world.moves.clear()
     p = robot.place([0.20, 0.15])
     assert p.ok and p.reason is None and not robot.state().holding
-    assert p.release_xyz == pytest.approx([0.20, 0.15, 0.01 + s.grasp_xyz[2]])  # bottom 1 cm above the table
+    assert p.release_xyz == pytest.approx([0.20, 0.15, 0.002 + s.grasp_xyz[2]])  # bottom 2 mm above the table
     b = world.boxes["red block"]
     assert b.center_xy == pytest.approx([0.20, 0.15], abs=0.006) and b.z_bottom == pytest.approx(0.0)
     assert robot.state().gripper_width_m == pytest.approx(held + 0.015)
@@ -357,7 +357,7 @@ def test_place_works_after_a_grasp_made_by_hand(robot, world):
     robot.set_gripper(0)
     robot.move_to([s.grasp_xyz[0], s.grasp_xyz[1], 0.09], path="line")
     p = robot.place([0.20, 0.15])
-    assert p.ok and p.release_xyz[2] == pytest.approx(0.01 + s.grasp_xyz[2])
+    assert p.ok and p.release_xyz[2] == pytest.approx(0.002 + s.grasp_xyz[2])
 
 
 def test_place_yaw_turns_the_object(robot, world):
@@ -572,6 +572,66 @@ def test_pick_keeps_the_middle_of_a_compact_object(robot, world):
 def test_place_goes_ahead_when_the_fingers_feel_nothing(robot, world):
     """A stem pinched flat reads like empty fingers: the model looks, and it may still put it down."""
     assert not robot.state().holding
-    p = robot.place([0.30, -0.05])
+    p = robot.place([0.30, -0.05], bottom_z=0.05)
     assert p.ok and p.reason is None, p
     assert world.moves[-2]["xyz"][:2] == pytest.approx([0.30, -0.05], abs=1e-6)
+
+
+# ---------------------------------------------------------------- light pieces bounce and fly (real arm, 2026-11-04)
+
+def recorded_grips(world):
+    asked = []
+    grip = world.grip
+
+    def recording(width_m, max_velocity=None):
+        asked.append((round(float(width_m), 4), max_velocity))
+        return grip(width_m, max_velocity)
+
+    world.grip = recording
+    return asked
+
+
+def test_pick_closes_fast_to_near_the_object_then_slowly_on_to_it(robot, world):
+    s = robot.locate("flat star")[0]
+    asked = recorded_grips(world)
+    r = robot.pick(s)
+    assert r.ok, r
+    assert asked[0] == (pytest.approx(s.open_width_m, abs=1e-4), None)          # opening is not slowed
+    assert asked[1:] == [(pytest.approx(s.size[1] + 0.015, abs=1e-4), None), (0.0, 0.02)]
+
+
+def test_a_pick_that_opens_just_enough_only_closes_slowly(robot, world):
+    s = robot.locate("flat star")[0]
+    asked = recorded_grips(world)
+    assert robot.pick(s, width_m=s.size[1] + 0.002).ok
+    assert asked[1:] == [(0.0, 0.02)]
+
+
+def test_drag_closes_slowly_too(robot, world):
+    s = robot.locate("flat star")[0]
+    asked = recorded_grips(world)
+    assert robot.drag(s, [0.25, -0.05]).ok
+    assert (0.0, 0.02) in asked
+
+
+def test_set_gripper_is_at_full_speed_unless_asked(robot, world):
+    asked = recorded_grips(world)
+    robot.set_gripper(0.05)
+    robot.set_gripper(0.0, speed_m_s=0.03)
+    assert asked == [(0.05, None), (0.0, 0.03)]
+
+
+def test_the_ledger_shows_a_speed_only_when_there_is_one(robot, world):
+    robot.set_gripper(0.05)
+    robot.set_gripper(0.0, speed_m_s=0.03)
+    first, second = robot.ledger.drain()[-2:]
+    assert "speed_m_s" not in first["args"] and second["args"]["speed_m_s"] == 0.03
+
+
+def test_a_placed_object_stops_just_above_the_table(robot, world):
+    s = robot.locate("flat star")[0]
+    assert robot.pick(s).ok
+    grasp_z = world.moves[1]["xyz"][2]
+    p = robot.place([0.20, 0.15])
+    assert p.ok
+    assert p.release_xyz[2] == pytest.approx(grasp_z + 0.002, abs=1e-3)

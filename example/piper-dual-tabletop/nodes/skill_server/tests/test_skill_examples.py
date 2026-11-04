@@ -11,6 +11,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from PIL import Image
 
 from tabletop import geometry as geo
 from tabletop.executor import Executor
@@ -170,6 +171,13 @@ TWO_DIGIT = ([("18", [0.26, 0.20], 90), ("7", [0.40, 0.21], 0), ("11", [0.44, 0.
              (["18", "-", "7", "=", "11"], ["18", "-", "11", "=", "7"], ["7", "+", "11", "=", "18"], ["11", "+", "7", "=", "18"]))
 
 
+FREE_PLACE = [0.33, 0.05]                                         # clear of equation_pieces
+
+
+def in_free_place(act: str, read: dict) -> str:
+    return decided(decided(act, "READ", read), "CENTRE", FREE_PLACE)
+
+
 def equation_pieces(numbers) -> list[Box]:
     spec = numbers + [("+", [0.24, -0.20], 270), ("-", [0.30, -0.24], 0), ("×", [0.41, -0.20], 90),
                       ("÷", [0.46, -0.10], 0), ("=", [0.20, 0.08], 180)]
@@ -181,7 +189,7 @@ def assert_row_reads(world, out, equations):
     m = re.search(r"equation: (.+)", out)
     assert m and m.group(1).split() in equations, out
     used = [f"piece {s}" for s in m.group(1).split()]
-    right = np.array([0.0, 1.0])                                  # READ_RIGHT_DEG default: +y
+    right = np.array([0.0, -1.0])                                 # READ_RIGHT_DEG default: -y
     pos = [np.asarray(world.boxes[n].center_xy) for n in used]
     along = [float(p @ right) for p in pos]
     assert all(b - a > 0.05 for a, b in zip(along, along[1:])), (along, out)  # left to right, spaced
@@ -190,21 +198,20 @@ def assert_row_reads(world, out, equations):
     for n in used:                                                # every top points to READ_UP_DEG
         b = world.boxes[n]
         top = (b.yaw_deg + b.meta["top_deg"]) % 360
-        assert abs((top - 180.0 + 180) % 360 - 180) < 6.0, (n, top, out)
+        assert abs((top + 180) % 360 - 180) < 6.0, (n, top, out)
 
 
 @pytest.mark.parametrize("numbers, equations", [ONE_DIGIT, TWO_DIGIT])   # two digits as in the organizers' example
 def test_playbook_c_equation_row_reads_correctly(tmp_path, numbers, equations):
     world, ex = setup(equation_pieces(numbers), tmp_path)
-    see, tiles, _above, act, check = blocks("C")
+    see, _above, act, check = blocks("C")
 
-    assert len(run(ex, see)["images"]) == 1
-    moves = sum("move" in line for line in world.log)
-    assert len(run(ex, tiles)["images"]) == 8                     # one tile per unread piece
-    assert sum("move" in line for line in world.log) == moves     # reading moves nothing
+    before = {n: (list(b.center_xy), b.z_bottom) for n, b in world.boxes.items()}
+    assert len(run(ex, see)["images"]) == 1                       # the head image: no chart, no tiles
+    assert {n: (list(b.center_xy), b.z_bottom) for n, b in world.boxes.items()} == before   # reading touches nothing
     read = {i: (nearest(world, s).meta["symbol"], image_direction(world, nearest(world, s)))
             for i, s in enumerate(ex.ns["pieces"], 1)}
-    out = run(ex, decided(act, "READ", read))["output"]
+    out = run(ex, in_free_place(act, read))["output"]
     assert_row_reads(world, out, equations)
     assert len(run(ex, check)["images"]) == 1
 
@@ -212,31 +219,34 @@ def test_playbook_c_equation_row_reads_correctly(tmp_path, numbers, equations):
 def test_playbook_c_reading_from_above_touches_nothing_and_sets_the_turn(tmp_path):
     numbers, equations = ONE_DIGIT
     world, ex = setup(equation_pieces(numbers), tmp_path)
-    see, tiles, above, act, _check = blocks("C")
+    see, above, act, _check = blocks("C")
     run(ex, see)
-    run(ex, tiles)
     read = {i: (nearest(world, s).meta["symbol"], image_direction(world, nearest(world, s)))
             for i, s in enumerate(ex.ns["pieces"], 1)}
     number = next(i for i, (symbol, _) in read.items() if symbol == "6")
     six = world.boxes["piece 6"]
-    run(ex, "move_to([0.30, 0.0, 0.20], yaw_deg=90)")             # the wrist image turns with the gripper
     before = {n: (list(b.center_xy), b.z_bottom) for n, b in world.boxes.items()}
 
-    out = run(ex, decided(above, "LOOK", [number]))
+    asked = []
+    ex.ns["look"] = lambda question, **kw: asked.append((question, kw)) or "6, its top points up"
+    out = run(ex, decided(above, "LOOK", {number: ["6", "8"]}))
 
-    assert len(out["images"]) == 1                                # the wrist image
-    assert world.moves[-1]["xyz"][:2] == pytest.approx(six.center_xy[:2], abs=0.003)   # as locate measured it
-    assert world.moves[-1]["tilt"] == pytest.approx(0.0)
+    assert len(asked) == 1 and "6, 8" in asked[0][0] and asked[0][1] == {"camera": "wrist"}, asked
+    assert "look: 6, its top points up" in out["output"]
+    heading = math.atan2(six.center_xy[1], six.center_xy[0])
+    short_of_it = [six.center_xy[0] - 0.04 * math.cos(heading), six.center_xy[1] - 0.04 * math.sin(heading)]
+    assert world.moves[-1]["xyz"][:2] == pytest.approx(short_of_it, abs=0.003)
+    assert world.moves[-1]["tilt"] == pytest.approx(25.0)
     assert not any("closed on" in line for line in world.log)
     assert {n: (list(b.center_xy), b.z_bottom) for n, b in world.boxes.items()} == before
 
     from_above = image_direction(world, six, "wrist_left")
     assert from_above != read[number][1]                          # else this test cannot tell the two images apart
     read[number] = ("6", from_above)
-    assert_row_reads(world, run(ex, decided(act, "READ", read))["output"], equations)
+    assert_row_reads(world, run(ex, in_free_place(act, read))["output"], equations)
 
 
-def test_playbook_c_at_1080p_tiles_hold_whole_pieces_and_the_row_reads(tmp_path):
+def test_playbook_c_at_1080p_the_row_reads(tmp_path):
     from .test_two_resolutions import World1080
 
     numbers, equations = ONE_DIGIT
@@ -244,18 +254,127 @@ def test_playbook_c_at_1080p_tiles_hold_whole_pieces_and_the_row_reads(tmp_path)
     robot = Robot(world, world, RobotConfig(wrist_cameras={"left": "wrist_left"}))
     robot.show_dir = tmp_path / "show"
     ex = Executor(robot)
-    see, tiles, _above, act, _check = blocks("C")
+    see, _above, act, _check = blocks("C")
     run(ex, see)
-    run(ex, tiles)
-
-    for s in ex.ns["pieces"]:
-        t = ex.ns["tile"](s)
-        own = np.array(s.color)
-        h, w = t.shape[:2]
-        assert np.abs(t[h // 2, w // 2].astype(int) - own).sum() < 30       # the piece is in the middle
-        rim = np.concatenate([t[0], t[-1], t[:, 0], t[:, -1]])
-        assert np.abs(rim.astype(int) - own).sum(axis=1).min() > 30, s      # and stops before the edge
 
     read = {i: (nearest(world, s).meta["symbol"], image_direction(world, nearest(world, s)))
             for i, s in enumerate(ex.ns["pieces"], 1)}
-    assert_row_reads(world, run(ex, decided(act, "READ", read))["output"], equations)
+    assert_row_reads(world, run(ex, in_free_place(act, read))["output"], equations)
+
+
+def test_playbook_c_does_not_move_anything_when_an_unused_piece_is_in_the_way(tmp_path):
+    numbers, _ = ONE_DIGIT
+    world, ex = setup(equation_pieces(numbers), tmp_path)
+    see, _above, act, _check = blocks("C")
+    run(ex, see)
+    read = {i: (nearest(world, s).meta["symbol"], image_direction(world, nearest(world, s)))
+            for i, s in enumerate(ex.ns["pieces"], 1)}
+    moves = len(world.moves)
+    out = run(ex, decided(decided(act, "READ", read), "CENTRE", [0.30, -0.24]))["output"]   # on the unused "-"
+    assert "in the way: [" in out and "in the way: []" not in out, out
+    assert len(world.moves) == moves
+
+
+def test_playbook_c_turns_a_piece_whose_top_is_unknown_not_at_all(tmp_path):
+    numbers, equations = ONE_DIGIT
+    world, ex = setup(equation_pieces(numbers), tmp_path)
+    see, _above, act, _check = blocks("C")
+    run(ex, see)
+    read = {i: (nearest(world, s).meta["symbol"], image_direction(world, nearest(world, s)))
+            for i, s in enumerate(ex.ns["pieces"], 1)}
+    code = in_free_place(act, read).replace("s.top_every_deg = 360.0", "s.top_every_deg = 360.0\n    s.top_deg = None", 1)
+    out = run(ex, code)["output"]
+    assert re.search(r"equation: \S", out) and out.count("True") >= 5, out
+
+
+def test_the_chart_of_the_pieces_can_be_shown(tmp_path):
+    world, ex = setup([], tmp_path)
+    out = run(ex, 'show(image=PIECE_CHART)')
+    assert len(out["images"]) == 1
+    assert Image.open(out["images"][0]).size[0] > 500
+
+
+ALL_PIECES = [str(n) for n in range(1, 21)] + ["+", "-", "×", "÷", "="]
+
+
+def test_each_piece_has_its_own_picture_to_show(tmp_path):
+    world, ex = setup([], tmp_path)
+    out = run(ex, 'print(sorted(PIECE_IMAGES))\nshow(image=PIECE_IMAGES["6"])\nshow(image=PIECE_IMAGES["÷"])')
+    assert len(out["images"]) == 2
+    assert all(Image.open(p).size[0] >= 200 for p in out["images"])
+    assert sorted(ex.ns["PIECE_IMAGES"]) == sorted(ALL_PIECES)
+    assert all(Path(p).is_file() for p in ex.ns["PIECE_IMAGES"].values())
+
+
+def wrist_reads(locate, symbol, top_deg):
+    """`locate` where only the wrist camera reads the pieces, the way the head camera did not."""
+
+    def reading(text, camera="head"):
+        found = locate(text, camera=camera)
+        if camera == "wrist":
+            for w in found:
+                w.symbol, w.top_deg, w.top_every_deg = symbol, top_deg, 360.0
+        return found
+
+    return reading
+
+
+def test_playbook_c_block_1_reads_unread_pieces_from_close_up_without_look(tmp_path):
+    numbers, _ = ONE_DIGIT
+    world, ex = setup(equation_pieces(numbers), tmp_path)
+    see, above, _act, _check = blocks("C")
+    asked = []
+    ex.ns["locate"] = wrist_reads(ex.ns["locate"], "7", 30.0)
+    ex.ns["look"] = lambda *a, **k: asked.append(a) or "?"
+    out = run(ex, see)["output"]
+    assert "still unread: []" in out and not asked, out
+    assert all(s.symbol == "7" and s.top_deg == 30.0 for s in ex.ns["pieces"])
+
+    moves = len(world.moves)
+    run(ex, above)                                                # nothing filled in: nothing to ask
+    assert len(world.moves) == moves and not asked
+
+
+def test_playbook_c_a_piece_without_its_top_stays_unread_from_close_up(tmp_path):
+    numbers, _ = ONE_DIGIT
+    world, ex = setup(equation_pieces(numbers), tmp_path)
+    see, _above, _act, _check = blocks("C")
+    ex.ns["locate"] = wrist_reads(ex.ns["locate"], "7", None)
+    out = run(ex, see)["output"]
+    assert "still unread: [1, 2, 3, 4, 5, 6, 7, 8]" in out, out
+    assert "from close up: 7 None" in out, out                    # what it did see is there for the model
+
+
+def test_playbook_c_blocks_copied_unchanged_keep_what_locate_read(tmp_path):
+    numbers, equations = ONE_DIGIT
+    world, ex = setup(equation_pieces(numbers), tmp_path)
+    see, _above, act, _check = blocks("C")
+    locate = ex.ns["locate"]
+
+    def reads_all(text, camera="head"):
+        found = locate(text, camera=camera)
+        for s in found:
+            b = nearest(world, s)
+            s.symbol, s.top_deg, s.top_every_deg = b.meta["symbol"], (b.yaw_deg + b.meta["top_deg"]) % 360, 360.0
+        return found
+
+    ex.ns["locate"] = reads_all
+    moves = len(world.moves)
+    out = run(ex, see)
+    assert "still unread: []" in out["output"] and len(out["images"]) == 1, out
+    assert len(world.moves) <= moves + 1                          # at most home
+    assert_row_reads(world, run(ex, decided(act, "CENTRE", FREE_PLACE))["output"], equations)
+
+
+def test_playbook_c_moves_a_piece_in_the_way_to_its_free_place_first(tmp_path):
+    numbers, equations = ONE_DIGIT
+    world, ex = setup(equation_pieces(numbers), tmp_path)
+    see, _above, act, _check = blocks("C")
+    run(ex, see)
+    read = {i: (nearest(world, s).meta["symbol"], image_direction(world, nearest(world, s)))
+            for i, s in enumerate(ex.ns["pieces"], 1)}
+    code = decided(decided(decided(act, "READ", read), "CENTRE", [0.30, -0.12]), "AWAY", [[0.33, 0.12]])   # on the unused "-"
+    out = run(ex, code)["output"]
+    assert "in the way: [" in out and "in the way: []" not in out, out
+    assert world.boxes["piece -"].center_xy[:2] == pytest.approx([0.33, 0.12], abs=0.01), out
+    assert_row_reads(world, out, equations)

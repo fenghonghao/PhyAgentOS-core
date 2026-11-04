@@ -6,3 +6,4 @@ __pycache__/
 .pytest_cache/
 dev/*.jsonl
 dev/piece_capture.npz
+dev/piece_layouts/*.npz

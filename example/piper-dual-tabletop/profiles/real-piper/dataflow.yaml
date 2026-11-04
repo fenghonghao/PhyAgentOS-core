@@ -1,5 +1,5 @@
 # Single AgileX PIPER (competition booth): gateway -> skill_server -> motion_server -> jtc ->
-# driver, plus the gripper controller. Cameras: head (pole-mounted, depth) + wrist (Orbbec nodes;
+# driver, plus the gripper node. Cameras: head (pole-mounted, depth) + wrist (Orbbec nodes;
 # swap run_camera.sh kind/config for RealSense or USB on site).
 # The arm is called "left" inside skill_server (input names left_*); model code never names it.
 nodes:
@@ -99,9 +99,11 @@ nodes:
   - joint_command
   - trajectory_feedback
   - trajectory_result
+# Streams the gripper target on every tick, so a close can be slow (nodes/skill_server/src/gripper_stream.py).
+# --trace keeps each goal's target and measured opening for debugging; delete it to turn that off.
 - id: gripper
-  path: ${FORGE_RUNTIME_BIN}/gripper_action_controller
-  args: --config gripper_controller.yaml
+  path: ${PAOS_SKILL_ROOT}/nodes/run_gripper.sh
+  args: --config gripper_controller.yaml --trace ~/.PhyAgentOS/logs/piper-dual-tabletop/gripper_trace.jsonl
   inputs:
     tick: dora/timer/millis/20
     joint_state: piper/state
@@ -113,7 +115,6 @@ nodes:
       queue_size: 1000
   outputs:
   - joint_command
-  - gripper_feedback
   - gripper_result
 - id: piper
   path: ${FORGE_RUNTIME_BIN}/robots_agilex_piper

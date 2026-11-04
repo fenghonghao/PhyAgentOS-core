@@ -1,0 +1,152 @@
+# Read by eye from the 1080p images. upside_down: the mask template turned this piece the wrong way there.
+layout1:
+- symbol: '1'
+  xy: [0.267, 0.064]
+- symbol: '11'
+  xy: [0.239, 0.119]
+- symbol: '5'
+  xy: [0.24, 0.171]
+  upside_down: true
+- symbol: '2'
+  xy: [0.293, 0.124]
+- symbol: '4'
+  xy: [0.29, 0.156]
+- symbol: '-'
+  xy: [0.3, 0.221]
+- symbol: '14'
+  xy: [0.31, 0.275]
+- symbol: '15'
+  xy: [0.332, 0.035]
+- symbol: '10'
+  xy: [0.328, 0.084]
+- symbol: +
+  xy: [0.361, 0.092]
+- symbol: '9'
+  xy: [0.333, 0.17]
+- symbol: '16'
+  xy: [0.334, 0.218]
+- symbol: '17'
+  xy: [0.366, 0.298]
+- symbol: '12'
+  xy: [0.326, 0.325]
+- symbol: '7'
+  xy: [0.394, 0.099]
+- symbol: '13'
+  xy: [0.416, 0.185]
+- symbol: '='
+  xy: [0.376, 0.193]
+- symbol: '3'
+  xy: [0.417, 0.229]
+- symbol: '19'
+  xy: [0.405, 0.33]
+- symbol: ÷
+  xy: [0.47, 0.057]
+- symbol: '18'
+  xy: [0.472, 0.19]
+- symbol: '8'
+  xy: [0.486, -0.006]
+- symbol: '20'
+  xy: [0.486, 0.135]
+- symbol: '6'
+  xy: [0.53, 0.099]
+  upside_down: true
+layout2:
+- symbol: '11'
+  xy: [0.239, 0.119]
+- symbol: '5'
+  xy: [0.24, 0.17]
+- symbol: '16'
+  xy: [0.269, 0.194]
+- symbol: '-'
+  xy: [0.237, 0.22]
+- symbol: '14'
+  xy: [0.235, 0.271]
+- symbol: '17'
+  xy: [0.233, 0.306]
+- symbol: '19'
+  xy: [0.235, 0.405]
+- symbol: '12'
+  xy: [0.245, 0.445]
+- symbol: '1'
+  xy: [0.284, 0.075]
+- symbol: '='
+  xy: [0.322, 0.219]
+- symbol: '9'
+  xy: [0.318, 0.27]
+- symbol: '3'
+  xy: [0.286, 0.281]
+- symbol: '13'
+  xy: [0.294, 0.407]
+- symbol: '15'
+  xy: [0.332, 0.035]
+- symbol: '2'
+  xy: [0.356, 0.127]
+- symbol: '10'
+  xy: [0.353, 0.254]
+- symbol: +
+  xy: [0.37, 0.352]
+- symbol: '7'
+  xy: [0.408, 0.084]
+- symbol: '20'
+  xy: [0.404, 0.262]
+- symbol: ÷
+  xy: [0.46, 0.225]
+- symbol: '18'
+  xy: [0.428, 0.3]
+- symbol: '4'
+  xy: [0.442, 0.357]
+- symbol: '8'
+  xy: [0.486, -0.006]
+- symbol: '6'
+  xy: [0.53, 0.099]
+  upside_down: true
+layout3:
+- symbol: '-'
+  xy: [0.217, 0.261]
+- symbol: '3'
+  xy: [0.184, 0.336]
+- symbol: '1'
+  xy: [0.271, 0.037]
+- symbol: '20'
+  xy: [0.272, 0.089]
+- symbol: '11'
+  xy: [0.239, 0.119]
+- symbol: '5'
+  xy: [0.238, 0.157]
+  upside_down: true
+- symbol: '2'
+  xy: [0.254, 0.193]
+- symbol: '19'
+  xy: [0.235, 0.405]
+- symbol: '12'
+  xy: [0.246, 0.446]
+- symbol: '14'
+  xy: [0.317, 0.205]
+- symbol: '17'
+  xy: [0.3, 0.245]
+- symbol: '9'
+  xy: [0.315, 0.269]
+- symbol: '13'
+  xy: [0.297, 0.434]
+- symbol: '15'
+  xy: [0.332, 0.035]
+- symbol: '='
+  xy: [0.363, 0.238]
+- symbol: '7'
+  xy: [0.396, 0.126]
+- symbol: '16'
+  xy: [0.41, 0.308]
+- symbol: '10'
+  xy: [0.378, 0.326]
+- symbol: +
+  xy: [0.391, 0.368]
+- symbol: ÷
+  xy: [0.457, 0.23]
+- symbol: '18'
+  xy: [0.436, 0.333]
+- symbol: '4'
+  xy: [0.449, 0.367]
+- symbol: '8'
+  xy: [0.486, -0.006]
+- symbol: '6'
+  xy: [0.532, 0.087]

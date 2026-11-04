@@ -62,7 +62,7 @@ nodes:
       - trajectory_result
 
   - id: gripper_left
-    path: ${FORGE_RUNTIME_BIN}/gripper_action_controller
+    path: ${PAOS_SKILL_ROOT}/nodes/run_gripper.sh
     args: --config gripper_controller.yaml
     inputs:
       tick: dora/timer/millis/20
@@ -71,7 +71,6 @@ nodes:
       gripper_cancel: {source: skill_server/left_gripper_cancel, queue_size: 1000}
     outputs:
       - joint_command
-      - gripper_feedback
       - gripper_result
 
   - id: mujoco

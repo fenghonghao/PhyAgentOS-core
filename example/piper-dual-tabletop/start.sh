@@ -40,7 +40,7 @@ SAM3_DIR="${SAM3_DIR:-$HOME/.PhyAgentOS/models/sam3}"
 "$VENV/bin/python" -c "import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null \
   && ok "torch CUDA available" || warn "torch CUDA not available: SAM3 would run on CPU (slow)"
 PYTHONPATH="$HERE/nodes/skill_server/src" "$VENV/bin/python" -c \
-  "import dora, forge_msgs, numpy, yaml, forge_tool, tabletop.dora_node" 2>/dev/null \
+  "import dora, forge_msgs, numpy, yaml, forge_tool, tabletop.dora_node, gripper_stream" 2>/dev/null \
   && ok "node imports" || bad "node imports"
 
 echo "== tools"

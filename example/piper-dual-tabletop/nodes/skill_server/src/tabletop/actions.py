@@ -24,6 +24,8 @@ PATHS = ("auto", "line", "joint")
 RISE_FIRST_M = 0.02        # a move that ends this much higher rises on the spot first, to clear what is near
 DROP_LAST_M = 0.05         # a move that ends this much lower crosses at the start's height and comes down last
 LONG_THIN_RATIO = 1.8      # a find this much longer than wide is closed on where most of its points are
+CLOSE_NEAR_M = 0.015       # fingers go fast to this far outside an object (real arm: up to 13 mm wider than measured)
+CLOSE_SPEED_M_S = 0.02     # and slowly from there: at full speed they knock a light piece away
 KEEP_YAW_DEG = 95.0        # a closing line this far from the tangent can stay (joint 6 stops at 100)
 
 
@@ -156,15 +158,18 @@ class ArmActions:
 
     # ------------------------------------------------------------------ gripper
 
-    def set_gripper(self, width_m: float) -> Grip:
-        """Move the fingers to an opening (m), 0 = closed. ``holding``: they stopped wider than
-        asked, so something is between them. Which object it is, this does not say."""
+    def set_gripper(self, width_m: float, speed_m_s: float | None = None) -> Grip:
+        """Move the fingers to an opening (m), 0 = closed. ``speed_m_s``: how fast the opening may
+        change, default full speed. ``holding``: they stopped wider than asked, so something is
+        between them. Which object it is, this does not say."""
         target = max(0.0, min(float(width_m), float(self.arms_backend.max_opening_m)))
         args: dict[str, Any] = {"width_m": round(target, 4)}
+        if speed_m_s is not None:
+            args["speed_m_s"] = speed_m_s
         snapshots = self._grip_snapshots(target)
         if snapshots:
             args["before_images"] = snapshots
-        return self._call("set_gripper", args, lambda: self._grip(target))
+        return self._call("set_gripper", args, lambda: self._grip(target, speed_m_s))
 
     def _grip_snapshots(self, target: float) -> list[str]:
         """For people debugging, not for the model: the cameras' newest frames just before the fingers
@@ -184,8 +189,8 @@ class ArmActions:
                 paths.append(str(path))
         return paths
 
-    def _grip(self, target: float) -> Grip:
-        out = self.arms_backend.grip(target)
+    def _grip(self, target: float, speed_m_s: float | None = None) -> Grip:
+        out = self.arms_backend.grip(target, speed_m_s)
         if self.cancel_event.is_set():
             raise Cancelled("robot.run cancelled")
         if out.fault:
@@ -313,6 +318,13 @@ class ArmActions:
             return float(s.open_width_m)
         return min(float(s.size[1]) + self.cfg.open_margin_m, most)
 
+    def _close_on(self, s: Sight) -> Grip:
+        """Fast to just outside the object, then slowly on to it: a light piece hit at full speed flies off."""
+        near = float(s.size[1]) + CLOSE_NEAR_M
+        if float(self.arms_backend.gripper_width()) > near:
+            self._grip(near)
+        return self.set_gripper(0.0, speed_m_s=CLOSE_SPEED_M_S)
+
     @staticmethod
     def _grasp_xy(s: Sight) -> tuple[float, float]:
         """The middle of what was found, or of most of it when it is long and thin: a cherry found
@@ -339,7 +351,7 @@ class ArmActions:
             m = self._motion(plan)
             if not m.reached:
                 return Pick(ok=False, reason=m.reason, detail=m.detail, tilt_deg=tilt, yaw_deg=yaw)
-        g = self.set_gripper(0.0)
+        g = self._close_on(s)
         self._motion(plans[-1])
         return Pick(ok=g.holding, reason=None if g.holding else "empty", width_m=g.width_m, tilt_deg=tilt, yaw_deg=yaw)
 
@@ -433,7 +445,7 @@ class ArmActions:
             m = self._motion(plan)
             if not m.reached:
                 return Drag(ok=False, reason=m.reason, detail=m.detail, tilt_deg=tilt, yaw_deg=yaw)
-        g = self.set_gripper(0.0)
+        g = self._close_on(s)
         if not g.holding:
             self._motion(back)
             return Drag(ok=False, reason="empty", width_m=g.width_m, tilt_deg=tilt, yaw_deg=yaw)

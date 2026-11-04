@@ -52,7 +52,10 @@
   .bar b { position: absolute; top: 0; height: 8px; width: 1px; background: #4a5461; }
   .grid2 { display: grid; grid-template-columns: 1fr; gap: 12px; }
   #prims { flex: 1; display: flex; flex-direction: column; }
-  #prims-list { flex: 1; overflow-y: auto; min-height: 0; }
+  #prims-list { flex: 1; overflow-y: auto; min-height: 0; overflow-anchor: none; }
+  #prims-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
+  #to-latest { position: absolute; right: 16px; bottom: 10px; display: none; padding: 3px 10px; border-radius: 12px; cursor: pointer;
+    background: var(--accent); color: #0d1014; border: none; font-size: 12px; }
   #prims label { display: flex; gap: 4px; align-items: center; font-weight: 400; color: var(--dim); font-size: 12px; }
   .run { border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; margin: 5px 0; }
   .scene-h { margin: 12px 0 4px; padding-top: 6px; border-top: 2px solid var(--line); color: var(--dim); font-size: 12px; }
@@ -118,7 +121,7 @@
       <h2>原语调用 <span class="tag" id="tag-prims">—</span><span class="spacer"></span>
         <label><input type="checkbox" id="follow" checked> 跟随最新</label></h2>
       <div class="controls" style="margin-bottom:4px">模型回复实时显示，代码块跑完后插入；思考和工具详情在场景结束后补全；点一行看入参和结果，并画进 3D</div>
-      <div id="prims-list"></div>
+      <div id="prims-wrap"><div id="prims-list"></div><button id="to-latest">↓ 最新</button></div>
     </div>
   </div>
 </main>
@@ -651,11 +654,22 @@ function renderScene(data) {
   }
   return el;
 }
+// Stick to the bottom like a chat while the reader is there; scrolling up pauses it until they come back.
+let stuck = true;
+const toLatest = $('#to-latest');
+const stickToBottom = () => { if (stuck) listEl.scrollTop = listEl.scrollHeight; };
+listEl.addEventListener('scroll', () => {
+  stuck = listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight < 40;
+  toLatest.style.display = stuck ? 'none' : 'block';
+});
+new MutationObserver(stickToBottom).observe(listEl, { childList: true, subtree: true, characterData: true });
+listEl.addEventListener('load', stickToBottom, true);   // an image arriving makes the list taller
+toLatest.addEventListener('click', () => { stuck = true; stickToBottom(); toLatest.style.display = 'none'; });
+
 function followLatest() {
   if (!$('#follow').checked) return;
   const last = [...runsById.values()].reduce((a, b) => (!a || b.t > a.t ? b : a), null);
   if (last) select(tree(last));
-  listEl.scrollTop = listEl.scrollHeight;
 }
 let ledgerOffset = -1, polling = false;
 async function pollLedger() {
