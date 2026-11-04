@@ -1,0 +1,46 @@
+2026-11-04T09:04:51.706431Z  INFO zenoh::net::runtime: Using ZID: 6973c9c1f463ab444ec7b6cf9c62a2ed
+2026-11-04T09:04:51.706797Z  INFO zenoh::net::runtime::orchestrator: Zenoh can be reached at: tcp/[fd7a:115c:a1e0::652b:842c]:45281
+2026-11-04T09:04:51.706802Z  INFO zenoh::net::runtime::orchestrator: Zenoh can be reached at: tcp/100.94.132.43:45281
+2026-11-04T09:04:51.706803Z  INFO zenoh::net::runtime::orchestrator: Zenoh can be reached at: tcp/198.18.0.1:45281
+2026-11-04T09:04:51.706803Z  INFO zenoh::net::runtime::orchestrator: Zenoh can be reached at: tcp/[fe80::d918:5a1d:7c24:2da1]:45281
+2026-11-04T09:04:51.706804Z  INFO zenoh::net::runtime::orchestrator: Zenoh can be reached at: tcp/[fe80::9180:cb25:a671:d0e1]:45281
+2026-11-04T09:04:51.706804Z  INFO zenoh::net::runtime::orchestrator: Zenoh can be reached at: tcp/[fe80::9a89:eb58:93d7:165c]:45281
+2026-11-04T09:04:51.706804Z  INFO zenoh::net::runtime::orchestrator: Zenoh can be reached at: tcp/192.168.13.189:45281
+2026-11-04T09:04:51.706821Z  INFO zenoh::net::runtime::orchestrator: zenohd listening scout messages on 224.0.0.224:7446
+17:04:52 DEBUG   synthetic_receiver: daemon::spawner  spawning node
+17:04:52 DEBUG   synthetic_sender: daemon::spawner  spawning node
+17:04:52 INFO    dora daemon  finished building nodes, spawning...
+17:04:52 INFO    synthetic_receiver: spawner  spawning `/tmp/dora-shm-investigation/probe.sh` in `/tmp/dora-shm-investigation`
+17:04:52 DEBUG   synthetic_receiver: spawner  spawned node with pid 75429
+17:04:52 INFO    synthetic_sender: spawner  spawning `/tmp/dora-shm-investigation/probe.sh` in `/tmp/dora-shm-investigation`
+17:04:52 DEBUG   synthetic_sender: spawner  spawned node with pid 75430
+17:04:52 INFO    synthetic_receiver: daemon  node is ready
+17:04:52 INFO    synthetic_sender: daemon  node is ready
+17:04:52 INFO    daemon  all nodes are ready, starting dataflow
+17:04:52 INFO    synthetic_receiver: opentelemetry  Global meter provider is set. Meters can now be created using global::meter() or global::meter_with_scope().
+17:04:52 stdout  synthetic_sender:  {"role": "sender", "t": 0.0, "count": 4, "segments": 4, "mapped_mib": 4.0}
+17:04:53 stdout  synthetic_sender:  {"role": "sender", "t": 1.031, "count": 132, "segments": 8, "mapped_mib": 8.0}
+17:04:54 stdout  synthetic_sender:  {"role": "sender", "t": 2.021, "count": 252, "segments": 10, "mapped_mib": 10.0}
+17:04:55 stdout  synthetic_sender:  {"role": "sender", "t": 3.011, "count": 372, "segments": 10, "mapped_mib": 10.0}
+17:04:56 stdout  synthetic_sender:  {"role": "sender", "t": 4.001, "count": 492, "segments": 10, "mapped_mib": 10.0}
+17:04:57 stdout  synthetic_sender:  {"role": "sender", "t": 5.024, "count": 616, "segments": 10, "mapped_mib": 10.0}
+17:04:58 stdout  synthetic_sender:  {"role": "sender", "t": 6.013, "count": 736, "segments": 10, "mapped_mib": 10.0}
+17:04:59 stdout  synthetic_sender:  {"role": "sender", "t": 7.004, "count": 856, "segments": 17, "mapped_mib": 17.0}
+17:05:00 stdout  synthetic_sender:  {"role": "sender", "t": 8.027, "count": 980, "segments": 17, "mapped_mib": 17.0}
+17:05:01 stdout  synthetic_sender:  {"role": "sender", "t": 9.017, "count": 1100, "segments": 17, "mapped_mib": 17.0}
+17:05:02 stdout  synthetic_sender:  {"role": "sender", "t": 10.007, "count": 1220, "segments": 17, "mapped_mib": 17.0}
+17:05:03 stdout  synthetic_sender:  {"role": "sender", "t": 11.03, "count": 1344, "segments": 17, "mapped_mib": 17.0}
+17:05:04 stdout  synthetic_sender:  {"role": "sender", "t": 12.02, "count": 1464, "segments": 17, "mapped_mib": 17.0}
+17:05:05 stdout  synthetic_sender:  {"role": "sender", "t": 13.01, "count": 1584, "segments": 17, "mapped_mib": 17.0}
+17:05:06 stdout  synthetic_receiver:  {"role": "receiver", "received": 1692, "elapsed": 14.045}
+17:05:06 stdout  synthetic_sender:  
+17:05:06 stdout  synthetic_sender:  
+17:05:06 DEBUG   synthetic_sender: daemon  handling node stop with exit status Success (restart: false)
+17:05:06 INFO    synthetic_sender: daemon  synthetic_sender finished successfully
+17:05:06 stdout  synthetic_receiver:  
+17:05:06 stdout  synthetic_receiver:  
+17:05:06 DEBUG   synthetic_receiver: daemon  handling node stop with exit status Success (restart: false)
+17:05:06 INFO    synthetic_receiver: daemon  synthetic_receiver finished successfully
+17:05:06 INFO    daemon  dataflow finished on machine `f5338e21-41a1-4a19-b2d6-a00e20293a80`
+2026-11-04T09:05:06.533604Z  INFO run_inner: dora_daemon: exiting daemon because all required dataflows are finished self.daemon_id=DaemonId { machine_id: None, uuid: f5338e21-41a1-4a19-b2d6-a00e20293a80 }
+2026-11-04T09:05:06.533639Z  INFO run_inner: zenoh::api::session: close session zid=6973c9c1f463ab444ec7b6cf9c62a2ed self.daemon_id=DaemonId { machine_id: None, uuid: f5338e21-41a1-4a19-b2d6-a00e20293a80 }

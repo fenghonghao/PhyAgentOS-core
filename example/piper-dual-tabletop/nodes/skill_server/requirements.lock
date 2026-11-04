@@ -1,0 +1,10 @@
+annotated-types==0.8.0
+dora-rs==0.4.1
+forge-msgs==1.0.1
+numpy==2.5.4
+pyarrow==23.0.1
+pydantic==2.14.2
+pydantic-core==2.50.2
+pyyaml==6.0.3
+typing-extensions==4.16.0
+typing-inspection==0.4.4

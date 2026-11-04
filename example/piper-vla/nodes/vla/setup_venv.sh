@@ -25,11 +25,12 @@ noproxy() { env -u https_proxy -u HTTPS_PROXY -u http_proxy -u HTTP_PROXY -u ALL
 
 echo "== venv $VENV"
 [ -x "$VENV/bin/python" ] || uv venv -q --python 3.12 "$VENV" || bad "uv venv"
-WANT="$(cat "$HERE/requirements-torch.txt" "$HERE/requirements-vla.txt" | sha256sum | cut -c1-16)"
+WANT="$(cat "$HERE/requirements-torch.txt" "$HERE/requirements-vla.txt" "$HERE/requirements-orbbec.txt" | sha256sum | cut -c1-16)"
 if [ "$(cat "$VENV/.req-hash" 2>/dev/null)" = "$WANT" ]; then ok "deps up to date"
 else
   uv pip install -q --python "$VENV/bin/python" -r "$HERE/requirements-torch.txt" \
     && uv pip install -q --python "$VENV/bin/python" -r "$HERE/requirements-vla.txt" \
+    && uv pip install -q --python "$VENV/bin/python" --no-deps -r "$HERE/requirements-orbbec.txt" \
     && echo "$WANT" > "$VENV/.req-hash" && ok "deps installed" || bad "pip install"
 fi
 "$VENV/bin/python" -c "import lerobot, torch; print('  lerobot', lerobot.__version__, 'torch', torch.__version__, 'cuda', torch.cuda.is_available())" || bad "import"

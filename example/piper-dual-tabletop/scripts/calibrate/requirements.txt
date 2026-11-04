@@ -1,0 +1,8 @@
+# Calibration tool only (not used by the skill's nodes). Same OpenCV as the board was generated with.
+piper_sdk==0.6.2
+python-can
+opencv-python-headless==4.13.0.92
+numpy
+scipy
+pyyaml
+pillow

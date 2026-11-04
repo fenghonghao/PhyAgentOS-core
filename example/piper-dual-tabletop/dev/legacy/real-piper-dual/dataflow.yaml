@@ -1,0 +1,186 @@
+# Dual AgileX PIPER: gateway -> skill_server -> 2 x (motion_server -> jtc -> driver, gripper controller).
+# Cameras: three Orbbec nodes (swap run_camera.sh kind/config for RealSense or USB on site).
+nodes:
+  - id: gateway
+    path: ${FORGE_RUNTIME_BIN}/gateway
+    args: --config gateway.yaml
+    inputs:
+      tick: dora/timer/millis/50
+      run_tool_in: {source: skill_server/tool_out, queue_size: 1000}
+    outputs:
+      - tool_response
+      - run_tool_out
+
+  - id: skill_server
+    path: ${PAOS_SKILL_ROOT}/nodes/run_skill_server.sh
+    args: --config skill_server.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      tool_in: {source: gateway/run_tool_out, queue_size: 1000}
+      head_color: {source: cam_head/image/color, queue_size: 1}
+      head_depth: {source: cam_head/image/depth, queue_size: 1}
+      wrist_left_color: {source: cam_wrist_left/image/color, queue_size: 1}
+      wrist_left_depth: {source: cam_wrist_left/image/depth, queue_size: 1}
+      wrist_right_color: {source: cam_wrist_right/image/color, queue_size: 1}
+      wrist_right_depth: {source: cam_wrist_right/image/depth, queue_size: 1}
+      left_state: piper_left/state
+      left_move_pose_result: {source: motion_left/move_pose_result, queue_size: 1000}
+      left_move_joints_result: {source: motion_left/move_joints_result, queue_size: 1000}
+      left_gripper_result: {source: gripper_left/gripper_result, queue_size: 1000}
+      right_state: piper_right/state
+      right_move_pose_result: {source: motion_right/move_pose_result, queue_size: 1000}
+      right_move_joints_result: {source: motion_right/move_joints_result, queue_size: 1000}
+      right_gripper_result: {source: gripper_right/gripper_result, queue_size: 1000}
+    outputs:
+      - tool_out
+      - left_move_pose_goal
+      - left_move_pose_cancel
+      - left_move_joints_goal
+      - left_move_joints_cancel
+      - left_gripper_goal
+      - left_gripper_cancel
+      - right_move_pose_goal
+      - right_move_pose_cancel
+      - right_move_joints_goal
+      - right_move_joints_cancel
+      - right_gripper_goal
+      - right_gripper_cancel
+
+  - id: motion_left
+    path: ${FORGE_RUNTIME_BIN}/motion_server
+    args: --config motion_server.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      joint_state: piper_left/state
+      move_joints_goal: {source: skill_server/left_move_joints_goal, queue_size: 1000}
+      move_joints_cancel: {source: skill_server/left_move_joints_cancel, queue_size: 1000}
+      move_pose_goal: {source: skill_server/left_move_pose_goal, queue_size: 1000}
+      move_pose_cancel: {source: skill_server/left_move_pose_cancel, queue_size: 1000}
+      trajectory_feedback: {source: jtc_left/trajectory_feedback, queue_size: 1000}
+      trajectory_result: {source: jtc_left/trajectory_result, queue_size: 1000}
+    outputs:
+      - move_joints_feedback
+      - move_joints_result
+      - move_pose_feedback
+      - move_pose_result
+      - trajectory_goal
+      - trajectory_cancel
+
+  - id: jtc_left
+    path: ${FORGE_RUNTIME_BIN}/joint_trajectory_controller
+    args: --config controller.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      joint_state: piper_left/state
+      trajectory_goal: {source: motion_left/trajectory_goal, queue_size: 1000}
+      trajectory_cancel: {source: motion_left/trajectory_cancel, queue_size: 1000}
+    outputs:
+      - joint_command
+      - trajectory_feedback
+      - trajectory_result
+
+  - id: gripper_left
+    path: ${FORGE_RUNTIME_BIN}/gripper_action_controller
+    args: --config gripper_controller.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      joint_state: piper_left/state
+      gripper_goal: {source: skill_server/left_gripper_goal, queue_size: 1000}
+      gripper_cancel: {source: skill_server/left_gripper_cancel, queue_size: 1000}
+    outputs:
+      - joint_command
+      - gripper_feedback
+      - gripper_result
+
+  - id: piper_left
+    path: ${FORGE_RUNTIME_BIN}/robots_agilex_piper
+    args: --config piper_left.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      action/arm: jtc_left/joint_command
+      action/gripper: gripper_left/joint_command
+    outputs:
+      - state
+
+  - id: motion_right
+    path: ${FORGE_RUNTIME_BIN}/motion_server
+    args: --config motion_server.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      joint_state: piper_right/state
+      move_joints_goal: {source: skill_server/right_move_joints_goal, queue_size: 1000}
+      move_joints_cancel: {source: skill_server/right_move_joints_cancel, queue_size: 1000}
+      move_pose_goal: {source: skill_server/right_move_pose_goal, queue_size: 1000}
+      move_pose_cancel: {source: skill_server/right_move_pose_cancel, queue_size: 1000}
+      trajectory_feedback: {source: jtc_right/trajectory_feedback, queue_size: 1000}
+      trajectory_result: {source: jtc_right/trajectory_result, queue_size: 1000}
+    outputs:
+      - move_joints_feedback
+      - move_joints_result
+      - move_pose_feedback
+      - move_pose_result
+      - trajectory_goal
+      - trajectory_cancel
+
+  - id: jtc_right
+    path: ${FORGE_RUNTIME_BIN}/joint_trajectory_controller
+    args: --config controller.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      joint_state: piper_right/state
+      trajectory_goal: {source: motion_right/trajectory_goal, queue_size: 1000}
+      trajectory_cancel: {source: motion_right/trajectory_cancel, queue_size: 1000}
+    outputs:
+      - joint_command
+      - trajectory_feedback
+      - trajectory_result
+
+  - id: gripper_right
+    path: ${FORGE_RUNTIME_BIN}/gripper_action_controller
+    args: --config gripper_controller.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      joint_state: piper_right/state
+      gripper_goal: {source: skill_server/right_gripper_goal, queue_size: 1000}
+      gripper_cancel: {source: skill_server/right_gripper_cancel, queue_size: 1000}
+    outputs:
+      - joint_command
+      - gripper_feedback
+      - gripper_result
+
+  - id: piper_right
+    path: ${FORGE_RUNTIME_BIN}/robots_agilex_piper
+    args: --config piper_right.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      action/arm: jtc_right/joint_command
+      action/gripper: gripper_right/joint_command
+    outputs:
+      - state
+
+  - id: cam_head
+    path: ${PAOS_SKILL_ROOT}/nodes/run_camera.sh
+    args: orbbec --config camera_head.yaml
+    inputs:
+      tick: dora/timer/millis/33
+    outputs:
+      - image/color
+      - image/depth
+
+  - id: cam_wrist_left
+    path: ${PAOS_SKILL_ROOT}/nodes/run_camera.sh
+    args: orbbec --config camera_wrist_left.yaml
+    inputs:
+      tick: dora/timer/millis/33
+    outputs:
+      - image/color
+      - image/depth
+
+  - id: cam_wrist_right
+    path: ${PAOS_SKILL_ROOT}/nodes/run_camera.sh
+    args: orbbec --config camera_wrist_right.yaml
+    inputs:
+      tick: dora/timer/millis/33
+    outputs:
+      - image/color
+      - image/depth

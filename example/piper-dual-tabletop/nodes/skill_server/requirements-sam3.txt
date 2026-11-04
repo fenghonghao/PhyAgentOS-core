@@ -1,0 +1,5 @@
+# SAM3 segmentation (installed by start.sh into the same venv)
+# torch comes from the PyTorch cu128 index (RTX 50xx / Blackwell needs CUDA 12.8 builds)
+--index-url https://download.pytorch.org/whl/cu128
+torch==2.11.0+cu128
+torchvision==0.26.0+cu128

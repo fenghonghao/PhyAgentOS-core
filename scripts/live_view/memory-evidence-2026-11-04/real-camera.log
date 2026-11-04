@@ -1,0 +1,66 @@
+2026-11-04T09:04:58.401006Z  INFO zenoh::net::runtime: Using ZID: 8464c8f7516db02ec0195e04218eea59
+2026-11-04T09:04:58.401494Z  INFO zenoh::net::runtime::orchestrator: Zenoh can be reached at: tcp/[fd7a:115c:a1e0::652b:842c]:42235
+2026-11-04T09:04:58.401498Z  INFO zenoh::net::runtime::orchestrator: Zenoh can be reached at: tcp/100.94.132.43:42235
+2026-11-04T09:04:58.401499Z  INFO zenoh::net::runtime::orchestrator: Zenoh can be reached at: tcp/198.18.0.1:42235
+2026-11-04T09:04:58.401500Z  INFO zenoh::net::runtime::orchestrator: Zenoh can be reached at: tcp/[fe80::d918:5a1d:7c24:2da1]:42235
+2026-11-04T09:04:58.401500Z  INFO zenoh::net::runtime::orchestrator: Zenoh can be reached at: tcp/[fe80::9180:cb25:a671:d0e1]:42235
+2026-11-04T09:04:58.401501Z  INFO zenoh::net::runtime::orchestrator: Zenoh can be reached at: tcp/[fe80::9a89:eb58:93d7:165c]:42235
+2026-11-04T09:04:58.401502Z  INFO zenoh::net::runtime::orchestrator: Zenoh can be reached at: tcp/192.168.13.189:42235
+2026-11-04T09:04:58.401523Z  INFO zenoh::net::runtime::orchestrator: zenohd listening scout messages on 224.0.0.224:7446
+17:04:58 DEBUG   camera_shm_verify: daemon::spawner  spawning node
+17:04:58 DEBUG   verify_sink: daemon::spawner  spawning node
+17:04:58 INFO    dora daemon  finished building nodes, spawning...
+17:04:58 INFO    camera_shm_verify: spawner  spawning `/home/bsb/.PhyAgentOS/skills/piper-dual-tabletop/nodes/run_camera.sh` in `/tmp/dora-shm-investigation`
+17:04:58 DEBUG   camera_shm_verify: spawner  spawned node with pid 75623
+17:04:58 INFO    verify_sink: spawner  spawning `/tmp/dora-shm-investigation/probe.sh` in `/tmp/dora-shm-investigation`
+17:04:58 DEBUG   verify_sink: spawner  spawned node with pid 75624
+17:04:59 INFO    verify_sink: daemon  node is ready
+17:04:59 stdout  camera_shm_verify:  2026-11-04 17:04:59 - forge_devices_orbbec_camera.main - INFO - [orbbec_camera] 初始化设备 serial=AY6Z36300RB index=0 align=sw
+17:04:59 stdout  camera_shm_verify:  load extensions from /home/bsb/.PhyAgentOS/skills/.venvs/piper-dual-tabletop-skill-server/lib/python3.12/site-packages/pyorbbecsdk/extensions
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO - [orbbec_camera] === 开始应用属性 ===
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.mirror: → False
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.flip: → False
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ depth.mirror: → False
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ depth.flip: → False
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ ir.mirror: → False
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ ir.flip: → False
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.auto_exposure: → False
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.exposure_us: 2778 → 2778
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.gain: 16 → 16
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.auto_white_balance: → True
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.brightness: 52 → 52
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.sharpness: 99 → 99
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.saturation: 32 → 32
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.contrast: 40 → 40
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.power_line_frequency: 0 → 0
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ depth.auto_exposure: → True
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ depth.noise_removal_filter: → True
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ depth.hole_filter: → False
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ depth.disparity_to_depth: → True
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ ir.auto_exposure: → True
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ laser.ldp_enabled: → True
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ laser.enabled: → True
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO - [orbbec_camera] === 属性应用完成 ===
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO - [orbbec_camera] DisparityTransform ON (params 只读，软件裁剪兜底: min=0 max=10000)
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO - [orbbec_camera] ThresholdFilter ON (set_value_range 不可用，软件裁剪兜底)
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.backend_orbbec - INFO - [orbbec_camera] SDK 滤波链就绪: ['DisparityTransform', 'ThresholdFilter']
+17:05:01 INFO    camera_shm_verify: daemon  node is ready
+17:05:01 INFO    daemon  all nodes are ready, starting dataflow
+17:05:01 INFO    camera_shm_verify: opentelemetry  Global meter provider is set. Meters can now be created using global::meter() or global::meter_with_scope().
+17:05:01 INFO    verify_sink: opentelemetry  Global meter provider is set. Meters can now be created using global::meter() or global::meter_with_scope().
+17:05:01 stdout  camera_shm_verify:  2026-11-04 17:05:01 - forge_devices_orbbec_camera.main - INFO - [orbbec_camera] 节点启动，输出: color=image/color depth=image/depth ir=image/ir point_cloud=point_cloud (disabled)
+2026-11-04T09:05:16.291252Z  INFO run_inner: dora_daemon: received ctrlc signal -> stopping all dataflows self.daemon_id=DaemonId { machine_id: None, uuid: 5eb05948-65b3-4090-a450-84feefa44ffd }
+17:05:16 stdout  camera_shm_verify:  2026-11-04 17:05:16 - forge_devices_orbbec_camera.main - INFO - [orbbec_camera] 收到 Stop 事件，退出
+17:05:16 stdout  verify_sink:  {"role": "receiver", "received": 856, "elapsed": 14.373}
+17:05:16 stdout  verify_sink:  
+17:05:16 stdout  verify_sink:  
+17:05:16 DEBUG   verify_sink: daemon  handling node stop with exit status Success (restart: false)
+17:05:16 INFO    verify_sink: daemon  verify_sink finished successfully
+17:05:16 stdout  camera_shm_verify:  2026-11-04 17:05:16 - forge_devices_orbbec_camera.main - INFO - [orbbec_camera] 节点已关闭
+17:05:16 stdout  camera_shm_verify:  
+17:05:16 stdout  camera_shm_verify:  
+17:05:16 DEBUG   camera_shm_verify: daemon  handling node stop with exit status Success (restart: false)
+17:05:16 INFO    camera_shm_verify: daemon  camera_shm_verify finished successfully
+17:05:16 INFO    daemon  dataflow finished on machine `5eb05948-65b3-4090-a450-84feefa44ffd`
+2026-11-04T09:05:16.435446Z  INFO run_inner: dora_daemon: exiting daemon because all required dataflows are finished self.daemon_id=DaemonId { machine_id: None, uuid: 5eb05948-65b3-4090-a450-84feefa44ffd }
+2026-11-04T09:05:16.435479Z  INFO run_inner: zenoh::api::session: close session zid=8464c8f7516db02ec0195e04218eea59 self.daemon_id=DaemonId { machine_id: None, uuid: 5eb05948-65b3-4090-a450-84feefa44ffd }

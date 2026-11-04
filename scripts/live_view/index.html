@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>PIPER 实时监看（只读）</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #14171c; --panel: #1c2128; --line: #2d343e; --text: #d7dce3; --dim: #8a94a3;
+    --ok: #4cc38a; --warn: #e5a93d; --bad: #ef5f5f; --accent: #5aa9ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 13px/1.45 system-ui, "Noto Sans CJK SC", sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 8px 16px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  .tag { padding: 1px 8px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); color: var(--dim); }
+  .tag.ok { color: var(--ok); border-color: #2c5a45; }
+  .tag.bad { color: var(--bad); border-color: #6b3333; }
+  .tag.warn { color: var(--warn); border-color: #6b5628; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding: 12px;
+    height: calc(100% - 41px); }
+  .col { display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-height: 0; }
+  .panel h2 { font-size: 13px; margin: 0 0 6px; display: flex; gap: 10px; align-items: center; font-weight: 600; }
+  .panel h2 .spacer { flex: 1; }
+  #cams .panel { flex: 1; display: flex; flex-direction: column; }
+  .panel h2 { white-space: nowrap; }
+  .tile { position: relative; background: #000; border-radius: 4px; overflow: hidden; flex: 1; min-height: 0; }
+  .tile canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain; }
+  .tile .label { position: absolute; left: 6px; top: 4px; font-size: 11px; color: #fff; text-shadow: 0 0 3px #000;
+    pointer-events: none; }
+  .tile .readout { position: absolute; right: 6px; bottom: 4px; font-size: 12px; color: #fff; background: #000a;
+    padding: 0 6px; border-radius: 3px; pointer-events: none; display: none; }
+  .tile .err { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px;
+    text-align: center; color: var(--bad); font-size: 12px; }
+  .controls { display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: 12px; }
+  input[type=range] { width: 90px; }
+  input[type=number] { width: 70px; background: var(--bg); color: var(--text); border: 1px solid var(--line);
+    border-radius: 3px; padding: 1px 4px; }
+  #view3d { flex: 1 1 55%; display: flex; flex-direction: column; }
+  #viewport { flex: 1; min-height: 240px; border-radius: 4px; overflow: hidden; background: #0d1014; position: relative; }
+  #viewport canvas { display: block; width: 100%; height: 100%; }
+  #viewport .note { position: absolute; left: 8px; bottom: 6px; color: var(--dim); font-size: 11px; pointer-events: none; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { padding: 2px 6px; text-align: right; font-variant-numeric: tabular-nums; }
+  th { color: var(--dim); font-weight: 400; text-align: right; }
+  td:first-child, th:first-child { text-align: left; }
+  .bar { position: relative; height: 8px; background: #0d1014; border-radius: 4px; min-width: 140px; }
+  .bar i { position: absolute; top: -2px; width: 3px; height: 12px; background: var(--accent); border-radius: 1px; }
+  .bar i.out { background: var(--bad); }
+  .bar b { position: absolute; top: 0; height: 8px; width: 1px; background: #4a5461; }
+  .grid2 { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  #prims { flex: 1; display: flex; flex-direction: column; }
+  #prims-list { flex: 1; overflow-y: auto; min-height: 0; }
+  #prims label { display: flex; gap: 4px; align-items: center; font-weight: 400; color: var(--dim); font-size: 12px; }
+  .run { border-top: 1px solid var(--line); padding: 6px 0; }
+  .run-h { display: flex; gap: 8px; align-items: center; cursor: pointer; font-variant-numeric: tabular-nums; }
+  .run-h .dim, .row .dim { color: var(--dim); }
+  .run-h .spacer { flex: 1; }
+  .run-h button { background: none; border: 1px solid var(--line); border-radius: 3px; color: var(--dim); font-size: 11px; cursor: pointer; }
+  .tl { position: relative; height: 16px; margin: 4px 0; background: #0d1014; border-radius: 2px; overflow: hidden; }
+  .tl i { position: absolute; top: 1px; height: 8px; min-width: 2px; }
+  .tl i.sub { top: 11px; height: 4px; opacity: .8; }
+  .row { display: grid; grid-template-columns: 8px 68px minmax(0, 1fr) 44px; gap: 6px; align-items: baseline; padding: 1px 2px; cursor: pointer; border-radius: 3px; }
+  .row:hover, .row.sel { background: #262d36; }
+  .row .dot { width: 8px; height: 8px; border-radius: 50%; align-self: center; }
+  .row .sum { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .dt { text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .row.bad .sum { color: var(--bad); }
+  .det { margin: 2px 0 6px 14px; font-size: 11px; }
+  .det img { max-width: 100%; display: block; margin: 4px 0; border-radius: 3px; }
+  pre { margin: 2px 0; padding: 4px 6px; background: #0d1014; border-radius: 3px; font-size: 11px; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; }
+  .kv span:nth-child(odd) { color: var(--dim); }
+  .stale { opacity: .45; }
+</style>
+</head>
+<body>
+<header>
+  <h1>PIPER 实时监看</h1>
+  <span class="tag">只读：不发送任何控制指令</span>
+  <span class="tag" id="tag-ws">连接中…</span>
+  <span class="tag" id="tag-can">CAN —</span>
+  <span class="controls" style="margin-left:auto">
+    深度色标 近 <input type="number" id="near" value="200" step="50" min="0"> mm
+    远 <input type="number" id="far" value="1500" step="50" min="100"> mm
+    <img id="colorbar" alt="" width="128" height="12" style="border-radius:2px">
+  </span>
+</header>
+<main>
+  <div class="col" id="cams"></div>
+  <div class="col">
+    <div class="panel" id="view3d">
+      <h2>机械臂模型 <span class="tag" id="tag-model">加载模型…</span><span class="spacer"></span>
+        <span class="controls">鼠标：左键旋转 / 右键平移 / 滚轮缩放</span></h2>
+      <div id="viewport"><div class="note">Z 向上；红 X / 绿 Y / 蓝 Z；模型由关节反馈驱动（固件对齐的实机 URDF）</div></div>
+    </div>
+    <div class="grid2">
+      <div class="panel">
+        <h2>关节反馈 <span class="spacer"></span><span class="tag" id="tag-rate">—</span></h2>
+        <table id="joints"><thead><tr><th>关节</th><th>角度 °</th><th>弧度</th><th style="text-align:left">在手册范围内的位置</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="panel">
+        <h2>状态</h2>
+        <div class="kv" id="state"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="panel" id="prims">
+      <h2>原语调用 <span class="tag" id="tag-prims">—</span><span class="spacer"></span>
+        <label><input type="checkbox" id="follow" checked> 跟随最新</label></h2>
+      <div class="controls" style="margin-bottom:4px">一个代码块结束后才更新；点一行看入参和结果，并画进 3D 场景</div>
+      <div id="prims-list"></div>
+    </div>
+  </div>
+</main>
+
+<script type="importmap">
+{ "imports": { "three": "/vendor/three/three.module.js", "three/addons/": "/vendor/three/addons/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+
+// ---------------------------------------------------------------- constants
+const CAMS = [['head', '头部相机'], ['wrist', '腕部相机']];
+// PIPER manual joint ranges (deg), used only for the position bars.
+const LIMITS = [[-154, 154], [0, 195], [-175, 0], [-106, 106], [-75, 75], [-100, 100]];
+// Mesh per link: the STLs of mjcf/assets are in the same link frames as the MJCF/URDF.
+const MESH = {
+  arm_base: { file: 'base_link' }, link1: { file: 'link1' }, link2: { file: 'link2' }, link3: { file: 'link3' },
+  link4: { file: 'link4' }, link5: { file: 'link5' }, link6: { file: 'link6', rpy: [0, 0, Math.PI / 2] },
+  link7: { file: 'link7' }, link8: { file: 'link8' },
+};
+const TEXT = {
+  ctrl: { STANDBY: '待机', CAN_CTRL: 'CAN 指令控制', TEACHING: '示教模式', ETHERNET: '以太网', WIFI: 'WiFi', REMOTE: '遥控器',
+          LINKAGE_TEACHING: '联动示教输入', OFFLINE_TRAJECTORY: '离线轨迹' },
+  arm: { NORMAL: '正常', EMERGENCY_STOP: '急停', NO_SOLUTION: '无解', SINGULARITY: '奇异点', TARGET_OVER_LIMIT: '目标超限',
+         JOINT_COMM_ERR: '关节通信异常', BRAKE_NOT_RELEASED: '抱闸未打开', COLLISION: '碰撞', DRAG_OVERSPEED: '拖动超速',
+         JOINT_STATUS_ERR: '关节状态异常', OTHER_ERR: '其它异常', TEACH_RECORD: '示教记录', TEACH_REPLAY: '示教执行',
+         TEACH_PAUSE: '示教暂停', MAIN_NTC_OVERTEMP: '主控过温', RESISTOR_NTC_OVERTEMP: '释放电阻过温' },
+  teach: { OFF: '关闭', RECORDING: '录制中', RECORD_STOPPED: '录制已结束', REPLAYING: '轨迹复现中', PAUSED: '暂停',
+           RESUMED: '继续', TERMINATED: '终止', MOVE_TO_START: '回起点' },
+};
+const $ = (s, el = document) => el.querySelector(s);
+const fmt = (v, d = 1) => v == null ? '—' : v.toFixed(d);
+
+// ---------------------------------------------------------------- camera panels
+// One image per camera: the RGB frame with the depth map blended over it. The depth stream has no tile
+// of its own, it is only overlaid and used for the distance under the pointer.
+const tiles = {};  // `${cam}.color` -> { el, canvas, bitmap, fps, readout }, `${cam}.depth` -> { bitmap, fps }
+const counters = {};  // frames per second per stream
+const overlay = {};   // cam -> depth alpha
+for (const [cam, title] of CAMS) {
+  overlay[cam] = 0.5;   // default: depth blended over the RGB image
+  const panel = document.createElement('div');
+  panel.className = 'panel';
+  panel.innerHTML = `
+    <h2>${title} <span class="tag" id="tag-${cam}">—</span><span class="spacer"></span>
+      <span class="controls">深度叠加浓度 <input type="range" min="0" max="100" step="5" value="50" id="ov-${cam}">
+      <span id="ovv-${cam}" style="min-width:3em;text-align:right">50%</span></span></h2>
+    <div class="tile"><canvas></canvas><span class="label">RGB + 深度 <span class="ovl">50%</span> · RGB <span class="fps-color"></span> · 深度 <span class="fps-depth"></span></span><span class="readout"></span></div>`;
+  $('#cams').appendChild(panel);
+  const tile = $('.tile', panel);
+  tiles[`${cam}.color`] = { el: tile, canvas: $('canvas', tile), bitmap: null, fps: $('.fps-color', tile), readout: $('.readout', tile) };
+  tiles[`${cam}.depth`] = { bitmap: null, fps: $('.fps-depth', tile) };
+  counters[`${cam}.color`] = counters[`${cam}.depth`] = 0;
+  hookDepthHover(cam, tile);
+  $(`#ov-${cam}`).addEventListener('input', e => {
+    overlay[cam] = e.target.value / 100;
+    $(`#ovv-${cam}`).textContent = `${e.target.value}%`;
+    $('.ovl', tile).textContent = `${e.target.value}%`;
+  });
+}
+
+function hookDepthHover(cam, tile) {
+  let busy = false;
+  const readout = tiles[`${cam}.color`].readout;
+  tile.addEventListener('mousemove', async e => {
+    if (busy) return;
+    const canvas = $('canvas', tile);
+    if (!canvas.width) return;
+    const r = canvas.getBoundingClientRect();
+    // the canvas is letterboxed (object-fit: contain): map the pointer to image pixels
+    const scale = Math.min(r.width / canvas.width, r.height / canvas.height);
+    const x = Math.floor((e.clientX - r.left - (r.width - canvas.width * scale) / 2) / scale);
+    const y = Math.floor((e.clientY - r.top - (r.height - canvas.height * scale) / 2) / scale);
+    busy = true;
+    try {
+      const { mm } = await (await fetch(`/api/depth/${cam}?x=${x}&y=${y}`)).json();
+      readout.style.display = 'block';
+      readout.textContent = `(${x}, ${y})  ${mm == null ? '无深度' : mm + ' mm'}`;
+    } finally { busy = false; }
+  });
+  tile.addEventListener('mouseleave', () => { readout.style.display = 'none'; });
+}
+
+// The depth image as an overlay layer: pixels without depth are black in the colour map, make them
+// transparent so they do not darken the RGB image. Rebuilt only when a new depth frame arrived.
+const layers = {};
+function depthLayer(cam, bitmap) {
+  let l = layers[cam];
+  if (!l) {
+    const canvas = document.createElement('canvas');
+    l = layers[cam] = { canvas, ctx: canvas.getContext('2d', { willReadFrequently: true }), src: null };
+  }
+  if (l.src !== bitmap) {
+    l.canvas.width = bitmap.width; l.canvas.height = bitmap.height;
+    l.ctx.drawImage(bitmap, 0, 0);
+    const img = l.ctx.getImageData(0, 0, bitmap.width, bitmap.height), d = img.data;
+    for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] < 40) d[i + 3] = 0;
+    l.ctx.putImageData(img, 0, 0);
+    l.src = bitmap;
+  }
+  return l.canvas;
+}
+
+function drawCameras() {
+  for (const [cam] of CAMS) {
+    const color = tiles[`${cam}.color`], depth = tiles[`${cam}.depth`];
+    if (!color.bitmap) continue;
+    if (color.canvas.width !== color.bitmap.width || color.canvas.height !== color.bitmap.height) {
+      color.canvas.width = color.bitmap.width; color.canvas.height = color.bitmap.height;
+    }
+    const ctx = color.canvas.getContext('2d');
+    ctx.globalAlpha = 1;
+    ctx.drawImage(color.bitmap, 0, 0);
+    if (overlay[cam] > 0 && depth.bitmap) {
+      ctx.globalAlpha = overlay[cam];
+      ctx.drawImage(depthLayer(cam, depth.bitmap), 0, 0, color.canvas.width, color.canvas.height);
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+// ---------------------------------------------------------------- websocket
+const state = { arm: null, armAt: 0 };
+let ws;
+function connect() {
+  ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.binaryType = 'arraybuffer';
+  ws.onopen = () => { setTag('#tag-ws', '已连接', 'ok'); sendRange(); };
+  ws.onclose = () => { setTag('#tag-ws', '断开，重连中…', 'bad'); setTimeout(connect, 1000); };
+  ws.onmessage = async ev => {
+    if (typeof ev.data === 'string') {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === 'arm') { state.arm = msg; state.armAt = performance.now(); }
+      return;
+    }
+    const view = new DataView(ev.data);
+    const n = view.getUint32(0);
+    const head = JSON.parse(new TextDecoder().decode(new Uint8Array(ev.data, 4, n)));
+    const bitmap = await createImageBitmap(new Blob([new Uint8Array(ev.data, 4 + n)], { type: 'image/jpeg' }));
+    const key = `${head.cam}.${head.kind}`;
+    tiles[key].bitmap?.close();
+    tiles[key].bitmap = bitmap;
+    counters[key]++;
+  };
+}
+function sendRange() {
+  if (ws?.readyState === 1) ws.send(JSON.stringify({ depth_range: [+$('#near').value, +$('#far').value] }));
+  $('#colorbar').src = `/api/colorbar.png?near=${$('#near').value}&far=${$('#far').value}&t=${Date.now()}`;
+}
+$('#near').addEventListener('change', sendRange);
+$('#far').addEventListener('change', sendRange);
+function setTag(sel, text, cls) { const t = $(sel); t.textContent = text; t.className = 'tag ' + (cls || ''); }
+
+setInterval(async () => {   // fps per tile + camera open errors
+  for (const key of Object.keys(counters)) {
+    tiles[key].fps.textContent = `${counters[key]} fps`;
+    counters[key] = 0;
+  }
+  try {
+    const status = await (await fetch('/api/status')).json();
+    for (const [cam] of CAMS) {
+      const c = status.cameras[cam];
+      setTag(`#tag-${cam}`, c.error ? '未打开' : `${c.serial}`, c.error ? 'bad' : 'ok');
+      const el = tiles[`${cam}.color`].el;
+      $('.err', el)?.remove();
+      if (c.error) el.insertAdjacentHTML('beforeend', `<div class="err">${c.error}</div>`);
+    }
+  } catch { /* server restarting */ }
+}, 1000);
+
+// ---------------------------------------------------------------- 3D robot
+THREE.Object3D.DEFAULT_UP.set(0, 0, 1);   // robot convention: Z up
+const viewport = $('#viewport');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+viewport.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d1014);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 10);
+camera.up.set(0, 0, 1);
+camera.position.set(0.75, -0.75, 0.55);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0.1, 0, 0.2);
+controls.update();
+scene.add(new THREE.HemisphereLight(0xffffff, 0x303844, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 2.2); sun.position.set(1, -1, 2); scene.add(sun);
+const grid = new THREE.GridHelper(1.2, 24, 0x3a4350, 0x232a33); grid.rotation.x = Math.PI / 2; scene.add(grid);
+scene.add(new THREE.AxesHelper(0.12));
+
+function resize() {
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(viewport);
+
+const robot = { joints: {}, tcp: null, links: null };
+
+async function loadRobot() {
+  const xml = new DOMParser().parseFromString(await (await fetch('/robot/piper.urdf')).text(), 'application/xml');
+  const nums = s => (s || '0 0 0').trim().split(/\s+/).map(Number);
+  const applyOrigin = (obj, el) => {
+    const o = el?.querySelector(':scope > origin');
+    obj.position.set(...nums(o?.getAttribute('xyz')));
+    const [r, p, y] = nums(o?.getAttribute('rpy'));
+    obj.rotation.set(r, p, y, 'ZYX');   // URDF rpy: fixed axes x, y, z = R = Rz Ry Rx
+  };
+  const links = {};
+  for (const el of xml.querySelectorAll('robot > link')) links[el.getAttribute('name')] = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color: 0xcad1ee, metalness: 0.25, roughness: 0.55 });
+  const loader = new STLLoader();
+  await Promise.all(Object.entries(links).map(async ([name, group]) => {
+    const spec = MESH[name];
+    if (!spec) return;
+    const geometry = await loader.loadAsync(`/robot/mesh/${spec.file}.stl`);
+    const mesh = new THREE.Mesh(geometry, material);
+    if (spec.rpy) mesh.rotation.set(...spec.rpy, 'ZYX');
+    group.add(mesh);
+  }));
+  const children = new Set();
+  for (const el of xml.querySelectorAll('robot > joint')) {
+    const name = el.getAttribute('name'), type = el.getAttribute('type');
+    const parent = links[el.querySelector('parent').getAttribute('link')];
+    const childName = el.querySelector('child').getAttribute('link');
+    const origin = new THREE.Group(); applyOrigin(origin, el);      // fixed joint frame
+    const motion = new THREE.Group();                               // moved by the joint value
+    origin.add(motion); motion.add(links[childName]); parent.add(origin);
+    children.add(childName);
+    const mimic = el.querySelector('mimic');
+    robot.joints[name] = { type, motion, axis: new THREE.Vector3(...nums(el.querySelector('axis')?.getAttribute('xyz') || '0 0 1')),
+      mimic: mimic ? { joint: mimic.getAttribute('joint'), k: +mimic.getAttribute('multiplier') } : null };
+    if (childName === 'tcp') robot.tcp = links.tcp;
+  }
+  robot.links = links;
+  const root = Object.keys(links).find(n => !children.has(n));
+  scene.add(links[root]);
+  const tcpAxes = new THREE.AxesHelper(0.05); links.tcp.add(tcpAxes);
+  setTag('#tag-model', '已加载', 'ok');
+}
+function setJoint(name, value) {
+  const j = robot.joints[name];
+  if (!j) return;
+  if (j.type === 'prismatic') { j.motion.position.copy(j.axis).multiplyScalar(value); }
+  else j.motion.quaternion.setFromAxisAngle(j.axis, value);
+  for (const [other, o] of Object.entries(robot.joints)) if (o.mimic?.joint === name) setJoint(other, o.mimic.k * value);
+}
+
+const _p = new THREE.Vector3();
+function link6Mm() {   // model link6 origin in the base frame, mm (the firmware reports this frame)
+  scene.updateMatrixWorld(true);
+  return robot.links.link6.getWorldPosition(_p).multiplyScalar(1000);
+}
+// Debug hook: window.robotFk([j1..j6] in deg) -> link6 position in mm, used to check the URDF port against piper_sdk's FK.
+window.robotFk = qDeg => { qDeg.forEach((d, i) => setJoint(`joint${i + 1}`, d * Math.PI / 180)); return link6Mm().toArray(); };
+
+// ---------------------------------------------------------------- joint / state panels
+const jointBody = $('#joints tbody');
+LIMITS.forEach((lim, i) => {
+  jointBody.insertAdjacentHTML('beforeend',
+    `<tr><td>J${i + 1}</td><td class="deg">—</td><td class="rad">—</td>` +
+    `<td><div class="bar"><b style="left:${(0 - lim[0]) / (lim[1] - lim[0]) * 100}%"></b><i style="left:0"></i></div></td></tr>`);
+});
+function updateArm() {
+  const arm = state.arm;
+  const stale = !arm || performance.now() - state.armAt > 1000;
+  $('#view3d #viewport').classList.toggle('stale', stale || !arm?.joints || (arm.age_ms.joints ?? 1e9) > 500);
+  if (!arm) return;
+  if (arm.error) setTag('#tag-can', `CAN 打不开：${arm.error}`, 'bad');
+  else if (!arm.joints || (arm.age_ms.joints ?? 1e9) > 500) setTag('#tag-can', 'CAN 无关节反馈（机械臂未上电？）', 'bad');
+  else setTag('#tag-can', 'CAN 正常', 'ok');
+  setTag('#tag-rate', arm.joint_hz ? `${arm.joint_hz} Hz` : '无数据', arm.joint_hz ? '' : 'warn');
+
+  const rows = jointBody.querySelectorAll('tr');
+  LIMITS.forEach((lim, i) => {
+    const deg = arm.joints?.[i];
+    const row = rows[i];
+    $('.deg', row).textContent = fmt(deg, 2);
+    $('.rad', row).textContent = deg == null ? '—' : (deg * Math.PI / 180).toFixed(3);
+    if (deg != null) {
+      const frac = (deg - lim[0]) / (lim[1] - lim[0]);
+      const mark = $('.bar i', row);
+      mark.style.left = `calc(${Math.min(Math.max(frac, 0), 1) * 100}% - 1px)`;
+      mark.classList.toggle('out', frac < 0 || frac > 1);
+      setJoint(`joint${i + 1}`, deg * Math.PI / 180);
+    }
+  });
+  const g = arm.gripper;
+  if (g.mm != null) setJoint('joint7', Math.min(Math.max(g.mm / 2000, 0), 0.0525));  // each finger travels half the opening
+
+  const s = arm.status, p = arm.pose;
+  let modelGap = null;   // self-check of the displayed model against the firmware end pose (valid while the arm is still)
+  if (robot.links && arm.joints && p[0] != null) modelGap = link6Mm().distanceTo(new THREE.Vector3(p[0], p[1], p[2]));
+  const warn = s && (s.arm !== 'NORMAL' || s.err);
+  $('#state').innerHTML = [
+    ['控制模式', s ? (TEXT.ctrl[s.ctrl] || s.ctrl) : '—', s && s.ctrl === 'TEACHING'],
+    ['机械臂状态', s ? (TEXT.arm[s.arm] || s.arm) : '—', warn],
+    ['示教状态', s ? (TEXT.teach[s.teach] || s.teach) : '—', s && s.teach !== 'OFF' && s.teach !== 'RECORD_STOPPED'],
+    ['故障码', s ? '0x' + s.err.toString(16).padStart(4, '0') : '—', s && s.err],
+    ['夹爪开口', g.mm == null ? '—' : `${g.mm.toFixed(1)} mm`, false],
+    ['夹爪力矩', g.effort == null ? '—' : `${g.effort.toFixed(2)} N·m`, false],
+    ['固件末端 X Y Z', p[0] == null ? '—' : `${fmt(p[0])}, ${fmt(p[1])}, ${fmt(p[2])} mm`, false],
+    ['固件末端 RX RY RZ', p[3] == null ? '—' : `${fmt(p[3])}, ${fmt(p[4])}, ${fmt(p[5])} °`, false],
+    ['模型 link6 与固件末端相距', modelGap == null ? '—' : `${modelGap.toFixed(1)} mm`, modelGap > 3],
+  ].map(([k, v, bad]) => `<span>${k}</span><span style="${bad ? 'color:var(--warn)' : ''}">${v}</span>`).join('');
+}
+
+// ---------------------------------------------------------------- primitive calls
+// Source: the skill's ledger, one record per robot.run block. All of it comes from model-written code,
+// so everything goes through esc() before reaching innerHTML.
+const COLORS = { perception: '#5aa9ff', handling: '#4cc38a', motion: '#e5a93d', gripper: '#c58af9', info: '#6b7685' };
+const CATEGORY = { locate: 'perception', show: 'perception', look: 'perception', capture: 'perception',
+  pick: 'handling', place: 'handling', drag: 'handling', move_to: 'motion', home: 'motion', motion: 'motion',
+  set_gripper: 'gripper', state: 'info', time_left: 'info' };
+const color = c => COLORS[CATEGORY[c.call] || 'info'];
+const esc = v => String(v).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+const mm = v => v == null ? '—' : `${(v * 1000).toFixed(0)} mm`;
+const xyz = p => Array.isArray(p) ? p.slice(0, 3).map(v => v == null ? '—' : (+v).toFixed(3)).join(', ') : esc(p ?? '—');
+const failed = c => c.error || c.result?.ok === false || c.result?.reached === false;
+
+function summary(c) {
+  const a = c.args || {}, r = c.result;
+  if (c.error) return c.error;
+  if (c.foldedText) return c.foldedText;
+  switch (c.call) {
+    case 'locate': return `"${a.text}" ${a.camera || ''} → ${r?.length ?? 0} 个${r?.length ? `，最高 ${r[0].score?.toFixed(2)}` : ''}`;
+    case 'show': return `${a.image ? '自定义图' : a.camera}${a.marks ? `，标记 ${a.marks} 个` : ''}`;
+    case 'look': return `${a.question} → ${JSON.stringify(r)}`;
+    case 'capture': return `${a.camera}（数组，只给模型计算）`;
+    case 'pick': return `${a.text ?? ''} ${r?.ok ? `抓到，宽 ${mm(r.width_m)}，倾 ${r.tilt_deg?.toFixed(0)}°` : `失败 ${r?.reason}`}`;
+    case 'place': return `${typeof a.target === 'string' ? a.target : xyz(a.target)} ${r?.ok ? `释放于 ${xyz(r.release_xyz)}` : `失败 ${r?.reason}`}`;
+    case 'drag': return `${a.text ?? ''} → ${xyz(a.to)} ${r?.ok ? '' : `失败 ${r?.reason}`}`;
+    case 'move_to': return `${xyz(a.xyz)} ${a.path || ''} ${r?.reached ? `误差 ${mm(r.err_m)}` : `失败 ${r?.reason}`}`;
+    case 'motion': return `${xyz(a.to)} ${r?.reached ? '' : `失败 ${r?.reason}`}`;
+    case 'set_gripper': return `${mm(a.width_m)} → ${mm(r?.width_m)}${r?.holding ? '，夹住' : ''}`;
+    case 'home': return r?.reached ? '回到起始位姿' : `失败 ${r?.reason}`;
+    case 'state': return `TCP ${xyz(r?.tcp_xyz)}，夹爪 ${mm(r?.gripper_width_m)}${r?.holding ? '，夹住' : ''}`;
+    case 'time_left': return r == null ? '无时限' : `剩 ${(+r).toFixed(0)} s`;
+    default: return JSON.stringify(a);
+  }
+}
+
+// Calls are logged when they end, so a parent comes after its children: rebuild the tree from the times.
+function tree(run) {
+  const calls = run.ledger || [];
+  const top = calls.filter(c => !c.nested).sort((a, b) => a.t_start - b.t_start).map(c => ({ ...c, children: [] }));
+  for (const n of calls.filter(c => c.nested)) {
+    const parent = top.find(t => t.t_start <= n.t_start && n.t_start <= t.t_start + t.dt_s + 0.01);
+    if (parent) parent.children.push(n);
+  }
+  top.forEach(t => t.children.sort((a, b) => a.t_start - b.t_start));
+  return top;
+}
+
+// ------ drawing in the 3D scene (world frame = arm base frame, same as the model)
+const marks = new THREE.Group(); scene.add(marks);
+const v3 = p => new THREE.Vector3(p[0], p[1], p[2]);
+const isXyz = p => Array.isArray(p) && p.length >= 3 && p.slice(0, 3).every(v => typeof v === 'number');
+function clearMarks() {
+  marks.traverse(o => { o.geometry?.dispose(); o.material?.map?.dispose(); o.material?.dispose(); });
+  marks.clear();
+}
+function line(points, col) {
+  marks.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: col })));
+}
+function dot(p, col, r = 0.006) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 8), new THREE.MeshBasicMaterial({ color: col }));
+  m.position.copy(v3(p)); marks.add(m);
+}
+function closingLine(p, yawDeg, width, col) {
+  if (yawDeg == null) return;
+  const d = new THREE.Vector3(Math.cos(yawDeg * Math.PI / 180), Math.sin(yawDeg * Math.PI / 180), 0).multiplyScalar((width || 0.04) / 2);
+  line([v3(p).sub(d), v3(p).add(d)], col);
+}
+function label(p, text, col) {
+  const c = document.createElement('canvas'); c.width = 320; c.height = 56;
+  const g = c.getContext('2d');
+  g.fillStyle = 'rgba(0,0,0,.65)'; g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = col; g.font = '30px sans-serif'; g.textBaseline = 'middle'; g.fillText(text, 8, 28);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+  s.scale.set(0.12, 0.021, 1); s.position.copy(v3(p)).add(new THREE.Vector3(0, 0, 0.03)); marks.add(s);
+}
+function drawCall(c) {
+  const a = c.args || {}, r = c.result || {}, col = failed(c) ? '#ef5f5f' : color(c);
+  if (c.call === 'locate' && Array.isArray(c.result)) {
+    c.result.forEach((s, i) => {
+      if (!isXyz(s.center_xyz)) return;
+      const size = s.size || [0.02, 0.02, 0.002];
+      const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(size[0], size[1], Math.max(size[2], 0.002))),
+        new THREE.LineBasicMaterial({ color: col }));
+      box.position.copy(v3(s.center_xyz)); box.rotation.z = (s.long_axis_deg || 0) * Math.PI / 180; marks.add(box);
+      if (isXyz(s.grasp_xyz)) closingLine(s.grasp_xyz, s.grasp_yaw_deg, s.open_width_m, '#ffffff');
+      label(s.center_xyz, `${i + 1}  ${s.text ?? ''} ${s.score?.toFixed(2) ?? ''}`, col);
+    });
+  } else if (c.call === 'pick' && isXyz(a.at)) {
+    dot(a.at, col); line([v3(a.at), v3(a.at).add(new THREE.Vector3(0, 0, 0.12))], col);
+    closingLine(a.at, r.yaw_deg ?? a.yaw_deg, r.width_m, '#ffffff');
+    label(a.at, `pick ${r.ok ? 'ok' : r.reason ?? ''}`, col);
+  } else if (c.call === 'place' && isXyz(r.release_xyz)) {
+    dot(r.release_xyz, col); line([v3(r.release_xyz), v3(r.release_xyz).add(new THREE.Vector3(0, 0, 0.12))], col);
+    label(r.release_xyz, 'place', col);
+  } else if (c.call === 'drag' && isXyz(a.at) && Array.isArray(a.to)) {
+    const to = [a.to[0], a.to[1], a.at[2]];
+    dot(a.at, col); dot(to, col); line([v3(a.at), v3(to)], col); label(to, `drag ${r.ok ? 'ok' : r.reason ?? ''}`, col);
+  } else if (c.call === 'move_to' && isXyz(a.xyz)) {
+    dot(a.xyz, col); closingLine(a.xyz, r.yaw_deg ?? a.yaw_deg, 0.04, '#ffffff'); label(a.xyz, `move_to ${a.path || ''}`, col);
+  } else if (c.call === 'state' && isXyz(r.tcp_xyz)) {
+    dot(r.tcp_xyz, col, 0.004);
+  } else if (c.call === 'home' && isXyz(r.final_xyz)) {
+    dot(r.final_xyz, col, 0.004);
+  }
+  const path = (c.children || []).filter(n => n.call === 'motion' && isXyz(n.args?.to)).map(n => n.args.to);
+  if (path.length) { line(path.map(v3), '#e5a93d'); path.forEach(p => dot(p, '#e5a93d', 0.003)); }
+}
+function select(calls, rowEl) {
+  document.querySelectorAll('.row.sel').forEach(e => e.classList.remove('sel'));
+  rowEl?.classList.add('sel');
+  clearMarks(); calls.forEach(drawCall);
+}
+
+// ------ list
+function makeRow(c) {
+  const wrap = document.createElement('div');
+  const row = document.createElement('div');
+  row.className = 'row' + (failed(c) ? ' bad' : '');
+  row.innerHTML = `<span class="dot" style="background:${color(c)}"></span><span>${esc(c.call)}</span>` +
+    `<span class="sum">${esc(summary(c))}</span><span class="dt">${(c.dt_s ?? 0).toFixed(1)} s</span>`;
+  row.title = summary(c);
+  row.addEventListener('click', () => {
+    $('#follow').checked = false;
+    select(c.group || [c], row);
+    let det = $(':scope > .det', wrap);
+    if (det) { det.remove(); return; }
+    det = document.createElement('div'); det.className = 'det';
+    if (c.group) {
+      c.group.forEach(g => det.appendChild(makeRow(g)));
+    } else {
+      if (c.call === 'show' && c.args?.path) det.insertAdjacentHTML('beforeend', `<img loading="lazy" alt="" src="/api/shot?path=${encodeURIComponent(c.args.path)}">`);
+      det.insertAdjacentHTML('beforeend', `<pre>入参 ${esc(JSON.stringify(c.args, null, 1))}\n结果 ${esc(JSON.stringify(c.error ?? c.result, null, 1))}</pre>`);
+      (c.children || []).forEach(n => det.appendChild(makeRow(n)));
+    }
+    wrap.appendChild(det);
+  });
+  wrap.appendChild(row);
+  return wrap;
+}
+function foldLocates(top) {   // runs of 3 or more locate calls become one row
+  const out = [];
+  for (let i = 0; i < top.length; i++) {
+    let j = i;
+    while (j + 1 < top.length && top[j + 1].call === 'locate') j++;
+    if (top[i].call === 'locate' && j - i >= 2) {
+      const group = top.slice(i, j + 1);
+      out.push({ call: 'locate', args: {}, group, dt_s: group.reduce((s, g) => s + g.dt_s, 0), t_start: group[0].t_start, result: [],
+        foldedText: `${group.length} 次，共 ${group.reduce((s, g) => s + (g.result?.length || 0), 0)} 个结果` });
+      i = j;
+    } else out.push(top[i]);
+  }
+  return out;
+}
+function addRun(run) {
+  const top = tree(run);
+  const card = document.createElement('div'); card.className = 'run';
+  const when = new Date(run.t * 1000).toTimeString().slice(0, 8);
+  const bad = run.error || run.fault || run.cancelled;
+  card.innerHTML = `<div class="run-h"><b>${when}</b><span class="dim">${(run.elapsed_s ?? 0).toFixed(1)} s · ${top.length} 个调用</span>` +
+    (bad ? `<span class="tag bad">${run.cancelled ? '已取消' : run.fault ? '硬件故障' : '报错'}</span>` : '') +
+    `<span class="spacer"></span><button>代码</button></div><div class="tl"></div><div class="rows"></div>`;
+  const t0 = top[0]?.t_start ?? 0;
+  const span = Math.max(run.elapsed_s || 0, ...top.map(c => c.t_start + c.dt_s - t0), 0.001);
+  const bar = (c, cls) => `<i class="${cls}" style="left:${(c.t_start - t0) / span * 100}%;width:${c.dt_s / span * 100}%;background:${failed(c) ? '#ef5f5f' : color(c)}" title="${esc(c.call)} ${c.dt_s} s"></i>`;
+  $('.tl', card).innerHTML = top.map(c => bar(c, '') + c.children.map(n => bar(n, 'sub')).join('')).join('');
+  const rows = $('.rows', card);
+  foldLocates(top).forEach(c => rows.appendChild(makeRow(c)));
+  $('button', card).addEventListener('click', e => {
+    e.stopPropagation();
+    const pre = $(':scope > pre', card);
+    if (pre) { pre.remove(); return; }
+    rows.insertAdjacentHTML('beforebegin', `<pre>${esc(run.code || '')}${run.output ? `\n--- 输出\n${esc(run.output)}` : ''}${run.error ? `\n--- 错误\n${esc(run.error)}` : ''}</pre>`);
+  });
+  $('.run-h', card).addEventListener('click', () => { $('#follow').checked = false; select(top); });
+  $('#prims-list').prepend(card);
+  while ($('#prims-list').children.length > 60) $('#prims-list').lastChild.remove();
+  if ($('#follow').checked) select(top);
+}
+let ledgerOffset = -1, runCount = 0;
+async function pollLedger() {
+  try {
+    const { offset, runs } = await (await fetch(`/api/ledger?since=${ledgerOffset}`)).json();
+    ledgerOffset = offset;
+    runs.forEach(addRun);
+    runCount += runs.length;
+    setTag('#tag-prims', `${runCount} 个代码块`, runCount ? 'ok' : '');
+  } catch { /* server restarting */ }
+}
+pollLedger(); setInterval(pollLedger, 1000);
+
+// ---------------------------------------------------------------- main loop
+function frame() {
+  drawCameras();
+  updateArm();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+resize();
+connect();
+loadRobot().then(() => requestAnimationFrame(frame)).catch(err => {
+  setTag('#tag-model', `模型加载失败：${err.message}`, 'bad');
+  requestAnimationFrame(frame);
+});
+</script>
+</body>
+</html>

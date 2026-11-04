@@ -1,0 +1,3 @@
+# Read the camera auto exposure in the start hook (scripts/lock_exposure.py). Install with --no-deps:
+# the package declares av, opencv-python, pygame and pynput, which reading a property does not need.
+pyorbbecsdk2==2.1.1

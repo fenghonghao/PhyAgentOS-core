@@ -409,6 +409,7 @@ class AgentLoop:
                     thinking_blocks=response.thinking_blocks,
                 )
 
+                image_paths: list[str] = []
                 for tool_call in response.tool_calls:
                     tools_used.append(tool_call.name)
                     if experience_session_key is not None:
@@ -418,9 +419,11 @@ class AgentLoop:
                     args_str = json.dumps(tool_call.arguments, ensure_ascii=False)
                     logger.info("Tool call: {}({})", tool_call.name, args_str[:200])
                     result = await self.tools.execute(tool_call.name, tool_call.arguments)
+                    image_paths += self.context.tool_result_images(result)
                     messages = self.context.add_tool_result(
                         messages, tool_call.id, tool_call.name, result
                     )
+                messages = self.context.add_tool_images(messages, image_paths)
             else:
                 clean = self._strip_think(response.content)
                 # Error responses never reach here: they raise above, before anything is

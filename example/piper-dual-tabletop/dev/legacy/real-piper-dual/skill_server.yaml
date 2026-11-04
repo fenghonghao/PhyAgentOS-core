@@ -1,0 +1,45 @@
+# Dual PIPER on the competition table. World frame = table frame (z up, table surface z = 0).
+# base_xyz / base_rpy_deg: each arm's arm_base frame in the world frame — FILL IN FROM
+# CALIBRATION ON SITE (placeholders below assume bases 0.60 m apart on the table edge,
+# both facing +x).
+arms:
+  left:
+    urdf: ../../assets/robots/piper/piper_with_gripper.urdf
+    base_xyz: [0.0, 0.30, 0.0]
+    base_rpy_deg: [0.0, 0.0, 0.0]
+    home_joints: [0.0, 0.5, -0.02, 0.0, 0.0, 0.0]
+    max_opening_m: 0.07          # confirm the fitted gripper's stroke on site
+  right:
+    urdf: ../../assets/robots/piper/piper_with_gripper.urdf
+    base_xyz: [0.0, -0.30, 0.0]
+    base_rpy_deg: [0.0, 0.0, 0.0]
+    home_joints: [0.0, 0.5, -0.02, 0.0, 0.0, 0.0]
+    max_opening_m: 0.07
+motion:
+  velocity_scale: 0.5
+  acceleration_scale: 0.5
+  line_step_m: 0.02
+  auto_line_max_m: 0.12
+robot:
+  table_z: 0.0
+  head_camera: head
+  wrist_cameras: {left: wrist_left, right: wrist_right}
+  topdown_max_z: 0.14                  # re-measure on site (depends on base height vs table)
+  observe_height_m: 0.25
+  wrist_cam_offset: [0.0, 0.0, 0.08]   # from hand-eye calibration
+  arm_conflict_min_dist_m: 0.12
+  handover_xyz: [0.30, 0.0, 0.14]      # giver TCP, top-down: keep z <= topdown_max_z; calibrate on site
+  handover_table_xy: [0.30, 0.0]
+  deadline_file: /tmp/paos_scene_deadline
+ledger_path: ~/.PhyAgentOS/logs/piper-dual-tabletop/ledger.jsonl
+
+# Cameras: intrinsics K come from the camera SDK / calibration (adapters do not publish them);
+# depth must be aligned to color (Orbbec align_mode: sw, RealSense align_to: color).
+# fixed: xyz/rpy_deg = camera pose in the world; wrist: pose of the camera in the TCP frame.
+# Wire Dora inputs <name>_color / <name>_depth to the camera nodes' image/color / image/depth.
+cameras: []
+#  - {name: head, K: [[605.0, 0, 320.0], [0, 605.0, 240.0], [0, 0, 1]], mount: fixed, xyz: [0, 0, 0.8], rpy_deg: [180, 0, 0]}
+#  - {name: wrist_left, K: [[...]], mount: wrist, arm: left, xyz: [0, 0, -0.08], rpy_deg: [0, 0, 0]}
+#  - {name: wrist_right, K: [[...]], mount: wrist, arm: right, xyz: [0, 0, -0.08], rpy_deg: [0, 0, 0]}
+segmenter: {kind: sam3, model_dir: ~/.PhyAgentOS/models/sam3, device: cuda, dtype: float16, threshold: 0.3}  # HARDWARE-LIMITED: ~0.55 s/frame on the RTX 5060 laptop; re-time on the workstation
+# debug fallback without GPU/weights:  segmenter: {kind: color}

@@ -1,0 +1,25 @@
+# Robot descriptor for the Piper (AgileX Piper 6-DOF + parallel gripper).
+# Single source of truth for sim.get_robot_info and the SKILL.md robot table.
+name: piper
+source: mjcf
+model: mjcf/scene.xml
+joints:
+  - {name: joint1, kind: revolute, limits_rad: [-2.6179, 2.6179]}
+  - {name: joint2, kind: revolute, limits_rad: [0.0, 3.14]}
+  - {name: joint3, kind: revolute, limits_rad: [-2.967, 0.0]}
+  - {name: joint4, kind: revolute, limits_rad: [-1.745, 1.745]}
+  - {name: joint5, kind: revolute, limits_rad: [-1.22, 1.22]}
+  - {name: joint6, kind: revolute, limits_rad: [-2.09439, 2.09439]}
+  # Logical gripper opening (m): |joint7 - joint8| of the parallel fingers.
+  - {name: gripper, kind: prismatic, limits_m: [0.0, 0.105]}
+eef_site: tcp
+initial_qpos:
+  joint1: 0.0
+  joint2: 0.0383
+  joint3: -0.0708
+  joint4: 0.0
+  joint5: 0.008
+  joint6: 0.0
+  gripper: 0.0
+has_gripper: true
+notes: 6-DOF arm; IK group "piper_arm" (joint1-joint6, base arm_base, tip tcp); gripper is the logical finger opening in meters.

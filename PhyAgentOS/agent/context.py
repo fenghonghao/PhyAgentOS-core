@@ -1,6 +1,7 @@
 """Context builder for assembling agent prompts."""
 
 import base64
+import json
 import mimetypes
 import platform
 import time
@@ -12,6 +13,7 @@ from typing import Any
 from PhyAgentOS.agent.memory import MemoryStore
 from PhyAgentOS.agent.skills import SkillsLoader
 from PhyAgentOS.utils.helpers import build_assistant_message, detect_image_mime
+from PhyAgentOS.utils.scene_deadline import time_left_note
 
 
 class ContextBuilder:
@@ -150,6 +152,9 @@ Reply directly with text for conversations. Only use the 'message' tool to send 
         now = datetime.now().strftime("%Y-%m-%d %H:%M (%A)")
         tz = time.strftime("%Z") or "UTC"
         lines = [f"Current Time: {now} ({tz})"]
+        note = time_left_note()
+        if note:
+            lines.append(note)
         if channel and chat_id:
             lines += [f"Channel: {channel}", f"Chat ID: {chat_id}"]
         return ContextBuilder._MESSAGE_CONTEXT_TAG + "\n" + "\n".join(lines)
@@ -232,8 +237,43 @@ Reply directly with text for conversations. Only use the 'message' tool to send 
         self, messages: list[dict[str, Any]],
         tool_call_id: str, tool_name: str, result: str,
     ) -> list[dict[str, Any]]:
-        """Add a tool result to the message list."""
+        """Add a tool result to the message list.
+
+        When a scene deadline is set, the seconds left are appended to the result so the next
+        model request carries them; appending to the newest message keeps the prompt prefix
+        (and the provider's prefix cache) unchanged.
+        """
+        note = time_left_note()
+        if note:
+            result = f"{result}\n{note}"
         messages.append({"role": "tool", "tool_call_id": tool_call_id, "name": tool_name, "content": result})
+        return messages
+
+    @staticmethod
+    def tool_result_images(result: str) -> list[str]:
+        """Image paths a Forge Action returned as ``outputs.images``; [] if the result has none.
+
+        forge_tool_action_result: ``data.result.outputs.images``; forge_tool_start_action with
+        wait=true returns ``{start, result}`` and nests that same path under ``result``.
+        """
+        try:
+            node = json.loads(result)
+            node = node["result"] if "start" in node else node
+            paths = node["data"]["result"]["outputs"]["images"]
+        except (ValueError, KeyError, TypeError):
+            return []
+        return [p for p in paths if isinstance(p, str)] if isinstance(paths, list) else []
+
+    def add_tool_images(self, messages: list[dict[str, Any]], paths: list[str]) -> list[dict[str, Any]]:
+        """Append the images of one assistant turn's tool calls as ONE user message.
+
+        Images cannot ride in a tool message and nothing may sit between a tool message and its
+        assistant tool_calls, so this goes after the last tool result. No file loading as an
+        image means no message.
+        """
+        content = self._build_user_content("The images above were requested with show(), in call order.", paths)
+        if isinstance(content, list):
+            messages.append({"role": "user", "content": content})
         return messages
 
     def add_assistant_message(

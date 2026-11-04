@@ -1,0 +1,89 @@
+nodes:
+  - id: gateway
+    path: ${FORGE_RUNTIME_BIN}/gateway
+    args: --config gateway.yaml
+    inputs:
+      tick: dora/timer/millis/50
+      run_tool_in: {source: skill_server/tool_out, queue_size: 1000}
+    outputs:
+      - tool_response
+      - run_tool_out
+
+  - id: skill_server
+    path: ${PAOS_SKILL_ROOT}/nodes/run_skill_server.sh
+    args: --config skill_server.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      tool_in: {source: gateway/run_tool_out, queue_size: 1000}
+      left_state: mujoco/proprio_state
+      left_move_pose_result: {source: motion_left/move_pose_result, queue_size: 1000}
+      left_move_joints_result: {source: motion_left/move_joints_result, queue_size: 1000}
+      left_gripper_result: {source: gripper_left/gripper_result, queue_size: 1000}
+    outputs:
+      - tool_out
+      - left_move_pose_goal
+      - left_move_pose_cancel
+      - left_move_joints_goal
+      - left_move_joints_cancel
+      - left_gripper_goal
+      - left_gripper_cancel
+
+  - id: motion_left
+    path: ${FORGE_RUNTIME_BIN}/motion_server
+    args: --config motion_server.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      joint_state: mujoco/proprio_state
+      move_joints_goal: {source: skill_server/left_move_joints_goal, queue_size: 1000}
+      move_joints_cancel: {source: skill_server/left_move_joints_cancel, queue_size: 1000}
+      move_pose_goal: {source: skill_server/left_move_pose_goal, queue_size: 1000}
+      move_pose_cancel: {source: skill_server/left_move_pose_cancel, queue_size: 1000}
+      trajectory_feedback: {source: jtc_left/trajectory_feedback, queue_size: 1000}
+      trajectory_result: {source: jtc_left/trajectory_result, queue_size: 1000}
+    outputs:
+      - move_joints_feedback
+      - move_joints_result
+      - move_pose_feedback
+      - move_pose_result
+      - trajectory_goal
+      - trajectory_cancel
+
+  - id: jtc_left
+    path: ${FORGE_RUNTIME_BIN}/joint_trajectory_controller
+    args: --config controller.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      joint_state: mujoco/proprio_state
+      trajectory_goal: {source: motion_left/trajectory_goal, queue_size: 1000}
+      trajectory_cancel: {source: motion_left/trajectory_cancel, queue_size: 1000}
+    outputs:
+      - joint_command
+      - trajectory_feedback
+      - trajectory_result
+
+  - id: gripper_left
+    path: ${FORGE_RUNTIME_BIN}/gripper_action_controller
+    args: --config gripper_controller.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      joint_state: mujoco/proprio_state
+      gripper_goal: {source: skill_server/left_gripper_goal, queue_size: 1000}
+      gripper_cancel: {source: skill_server/left_gripper_cancel, queue_size: 1000}
+    outputs:
+      - joint_command
+      - gripper_feedback
+      - gripper_result
+
+  - id: mujoco
+    path: ${FORGE_RUNTIME_BIN}/mujoco_sim
+    args: --config simulator.yaml
+    inputs:
+      tick: dora/timer/millis/20
+      action/arm: jtc_left/joint_command
+      action/gripper: gripper_left/joint_command
+    outputs:
+      - proprio_state
+      - image/hand
+      - image/top
+      - image/angle
+      - image/left_pillar

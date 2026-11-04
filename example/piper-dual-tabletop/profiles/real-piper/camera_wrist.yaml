@@ -1,0 +1,20 @@
+# Orbbec Gemini 2 "wrist" (orbbec_camera v1.1.0).
+device_serial: "AY6Z363005R"
+color:
+  data_flow: {width: 640, height: 480, fps: 30, format: rgb8}
+  # Fixed exposure: the view changes with arm pose, and auto exposure would still be settling when
+  # a frame is taken right after a move. The start hook measures the value for each run from the
+  # head camera and nodes/run_camera.sh replaces exposure_us with it; the 2500 here is used only
+  # without a measurement. Measured in the booth lighting 2026-11-04, looking down at the table
+  # (brightest view): 2500 us = p50 180, 0% saturated; 5000 us clips 36%; 1000 us and below flickers.
+  control: {auto_exposure: false, exposure_us: 2500, gain: 16, auto_white_balance: true}
+depth:
+  data_flow: {enabled: true, width: 640, height: 400, fps: 30, format: y16}
+ir:
+  data_flow: {enabled: false}
+align_mode: sw            # depth aligned to color: one pixel grid, one intrinsics matrix
+prewarm_frames: 10
+connect_delay_ms: 1500  # stagger USB enumeration across the two cameras
+capture_process: isolated
+output_color: image/color
+output_depth: image/depth

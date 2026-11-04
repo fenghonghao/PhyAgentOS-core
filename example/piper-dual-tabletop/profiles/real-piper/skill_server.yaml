@@ -1,0 +1,67 @@
+# Single PIPER in the competition booth (one arm on the back edge, pole-mounted head camera,
+# wrist camera, white side panels). World frame = the arm's base frame (x forward, y left, z up);
+# table_z = height of the table surface in that frame (negative if the base sits on a plate).
+# FILL IN ON SITE: the cameras (our own calibration), workspace (panels).
+# Values marked "measured" come from the booth arm on 2026-11-04: re-measure if the arm, gripper
+# or table moves.
+arms:
+  left:                          # internal name; model code never names the arm
+    urdf: ../../assets/robots/piper/piper_with_gripper_real.urdf
+    base_xyz: [0.0, 0.0, 0.0]
+    base_rpy_deg: [0.0, 0.0, 0.0]
+    home_joints: [0.0, 0.5, -0.02, 0.0, 0.0, 0.0]
+    max_opening_m: 0.10          # measured: commanding 100 mm reads 99.6 mm (not yet checked with a ruler)
+motion:
+  velocity_scale: 0.5
+  acceleration_scale: 0.5
+  line_step_m: 0.02
+  auto_line_max_m: 0.12
+robot:
+  # Measured, closed fingertips touching the table at 3 points, firmware-reported pose: flange
+  # z = 147.5 mm (spread 0.44 mm, no measurable tilt), so the fingertips touch at TCP z = 12.5 mm.
+  # The camera calibration defines the table as z = 0. Everything that matters is relative to the
+  # table (fingertip height = TCP z - 12.5 mm), so this holds with or without a plate under the base.
+  table_z: 0.0
+  tcp_floor_z_m: 0.0155                # measured TCP z at touch (12.5 mm) + 3 mm margin
+  head_camera: head
+  wrist_cameras: {left: wrist}
+  finger_half_depth_m: 0.01            # estimate, MEASURE: half a finger's width; a lean lowers its edge by this x sin(lean)
+  # TCP targets outside are refused (reason outside_workspace). MEASURE the panels and the pole:
+  # workspace: {x: [0.12, 0.55], y: [-0.35, 0.35], z_max: 0.40}
+  approach_m: 0.08                     # hover above grasp / release points
+  place_gap_m: 0.01                    # place on the table: object bottom above it when released
+  drop_gap_m: 0.03                     # place in a container: object bottom above its rim when released
+  deadline_file: /tmp/paos_scene_deadline
+ledger_path: ~/.PhyAgentOS/logs/piper-dual-tabletop/ledger.jsonl
+show_dir: ~/.PhyAgentOS/logs/piper-dual-tabletop/show   # image files of show()
+
+# look(): deepseek-flash (OpenAI-compatible, accepts images). Key: env DEEPSEEK_API_KEY, else
+# providers.deepseek.apiKey in the PAOS config (never logged). save_dir keeps every image sent.
+vision:
+  paos_provider: deepseek
+  save_dir: ~/.PhyAgentOS/logs/piper-dual-tabletop/look
+
+# Cameras: intrinsics K come from the camera SDK / calibration (adapters do not publish them);
+# depth must be aligned to color (Orbbec align_mode: sw, RealSense align_to: color).
+# fixed: xyz/rpy_deg (or T_matrix) = camera pose in the world; wrist: pose of the camera in the
+# TCP frame (wrist_frame: link6 if the calibration is relative to the flange).
+# Dora inputs head_color/head_depth and wrist_color/wrist_depth are already wired.
+# Measured 2026-11-04 with scripts/calibrate/calibrate.py (booth arm, 640x480), two runs merged. Head K:
+# factory; wrist K: fitted from 18 board views, no distortion. Pointing the TCP at board corners located
+# by the head camera lands within 2.1 mm. Recalibrate the head if the camera or its pole moved.
+cameras:
+  - name: head
+    K: [[1033.43, 0, 960.853], [0, 1033.183, 545.645], [0, 0, 1]]   # at 1920x1080, the stream's size
+    find_window: [320, 60, 1280, 960, 2]   # SAM3, depth and outlines work on this part at half size: the
+                                           # camera's own 640x480 mode, pixel for pixel. The model sees all of it
+    mount: fixed
+    depth_scale: 1.0105   # the head depth reads about 1% short at 0.8 m
+    T_matrix: [[-0.028169, -0.903539, 0.427579, 0.054401], [-0.999535, 0.020477, -0.022579, 0.305527], [0.011646, -0.428016, -0.903696, 0.754593], [0, 0, 0, 1]]
+  - name: wrist
+    K: [[524.50, 0, 316.00], [0, 523.30, 242.30], [0, 0, 1]]
+    mount: wrist
+    arm: left
+    wrist_frame: link6
+    T_matrix: [[0.043037, 0.940062, 0.338276, -0.071689], [-0.998657, 0.030702, 0.041734, -0.004097], [0.028847, -0.339618, 0.940121, 0.038809], [0, 0, 0, 1]]
+segmenter: {kind: sam3, model_dir: ~/.PhyAgentOS/models/sam3, device: cuda, dtype: float16, threshold: 0.3}  # HARDWARE-LIMITED: ~0.55 s/frame on the RTX 5060 laptop; re-time on the workstation
+# debug fallback without GPU/weights:  segmenter: {kind: color}

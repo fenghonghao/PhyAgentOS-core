@@ -1,0 +1,8 @@
+# generated locally
+profiles/*/dataflow.local.yaml
+profiles/*/out/
+dev/*.log
+__pycache__/
+.pytest_cache/
+dev/*.jsonl
+dev/piece_capture.npz

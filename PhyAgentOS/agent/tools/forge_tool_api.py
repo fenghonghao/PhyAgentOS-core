@@ -8,12 +8,40 @@ from typing import Any, Awaitable, Callable
 from uuid import uuid4
 
 from PhyAgentOS.agent.tools.base import Tool
-from PhyAgentOS.forge.task import AgentTaskCoordinator, AgentTaskError
+from PhyAgentOS.forge.task import (
+    TERMINAL_TOOL_STATUSES,
+    AgentTaskCoordinator,
+    AgentTaskError,
+    _tool_status,
+)
 from PhyAgentOS.forge.tool_client import (
     ForgeToolAPIError,
     ForgeToolAPITimeoutError,
     ForgeToolClient,
 )
+
+# Interval between result reads while a caller waits for an Action's terminal state.
+WAIT_POLL_S = 0.25
+
+
+async def _read_result_until_terminal(
+    client: ForgeToolClient,
+    coordinator: AgentTaskCoordinator,
+    task_id: str,
+    invocation_id: str,
+) -> dict[str, Any]:
+    """Read the Action result until it is terminal (succeeded/failed/cancelled/stopped/unknown).
+
+    There is deliberately no time limit: the Action's own outcome ends the wait. Every read
+    is persisted through the Coordinator exactly like a single ``forge_tool_action_result``.
+    """
+    while True:
+        coordinator.require_action_invocation(task_id, invocation_id)
+        response = await client.invocation_result(invocation_id)
+        coordinator.observe_action(task_id, invocation_id, response)
+        if _tool_status(response, default="pending") in TERMINAL_TOOL_STATUSES:
+            return response
+        await asyncio.sleep(WAIT_POLL_S)
 
 
 def _json(value: Any) -> str:
@@ -118,8 +146,11 @@ class ForgeToolQueryTool(Tool):
 
 
 class ForgeToolStartActionTool(Tool):
-    def __init__(self, coordinator: AgentTaskCoordinator) -> None:
+    def __init__(
+        self, coordinator: AgentTaskCoordinator, client: ForgeToolClient | None = None
+    ) -> None:
         self.coordinator = coordinator
+        self.client = client
 
     @property
     def name(self) -> str:
@@ -127,11 +158,18 @@ class ForgeToolStartActionTool(Tool):
 
     @property
     def description(self) -> str:
-        return "Start a task-bound Forge Action; admission is not completion or task success."
+        return (
+            "Start a task-bound Forge Action; admission is not completion or task success. "
+            "With wait=true the call returns only after the Action reaches a terminal state, "
+            "as {start, result}, saving a separate forge_tool_action_result round."
+        )
 
     @property
     def parameters(self) -> dict[str, Any]:
-        return _invoke_schema(task_required=True, include_timeout=True)
+        schema = _invoke_schema(task_required=True, include_timeout=True)
+        if self.client is not None:
+            schema["properties"]["wait"] = {"type": "boolean"}
+        return schema
 
     async def execute(
         self,
@@ -139,12 +177,24 @@ class ForgeToolStartActionTool(Tool):
         tool_id: str,
         arguments: dict[str, Any],
         timeout_ms: int | None = None,
+        wait: bool = False,
     ) -> str:
-        return await _call(
-            lambda: self.coordinator.start_action(
+        async def start() -> dict[str, Any]:
+            response = await self.coordinator.start_action(
                 task_id, tool_id, arguments, timeout_ms=timeout_ms
             )
-        )
+            if not wait or self.client is None:
+                return response
+            data = response.get("data") if isinstance(response.get("data"), dict) else response
+            invocation_id = data.get("invocation_id")
+            if not isinstance(invocation_id, str) or not invocation_id:
+                return response
+            result = await _read_result_until_terminal(
+                self.client, self.coordinator, task_id, invocation_id
+            )
+            return {"start": response, "result": result}
+
+        return await _call(start)
 
 
 class _ActionReadTool(Tool):
@@ -156,12 +206,19 @@ class _ActionReadTool(Tool):
 
     @property
     def parameters(self) -> dict[str, Any]:
-        return _owned_invocation_schema()
+        schema = _owned_invocation_schema()
+        if self.operation == "result":
+            schema["properties"]["wait"] = {"type": "boolean"}
+        return schema
 
-    async def execute(self, task_id: str, invocation_id: str) -> str:
+    async def execute(self, task_id: str, invocation_id: str, wait: bool = False) -> str:
         async def read() -> dict[str, Any]:
             # Reject cross-task identifiers before disclosing Gateway state.
             self.coordinator.require_action_invocation(task_id, invocation_id)
+            if wait and self.operation == "result":
+                return await _read_result_until_terminal(
+                    self.client, self.coordinator, task_id, invocation_id
+                )
             if self.operation == "status":
                 response = await self.client.invocation_status(invocation_id)
             else:
@@ -193,7 +250,10 @@ class ForgeToolActionResultTool(_ActionReadTool):
 
     @property
     def description(self) -> str:
-        return "Read and persist this task's Action result; pending and unknown are not success."
+        return (
+            "Read and persist this task's Action result; pending and unknown are not success. "
+            "With wait=true, keep reading until the result is terminal."
+        )
 
 
 class ForgeToolCancelActionTool(Tool):
@@ -341,7 +401,7 @@ def build_forge_tool_api_tools(
     return [
         ForgeToolContextTool(client),
         ForgeToolQueryTool(client, coordinator),
-        ForgeToolStartActionTool(coordinator),
+        ForgeToolStartActionTool(coordinator, client),
         ForgeToolActionStatusTool(client, coordinator),
         ForgeToolActionResultTool(client, coordinator),
         ForgeToolCancelActionTool(client, coordinator),

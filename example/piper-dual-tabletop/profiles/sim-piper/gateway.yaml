@@ -1,0 +1,53 @@
+host: 127.0.0.1
+port: 19002
+joint_order: []
+image_input_ids: []
+
+readiness:
+  require_proprio_state: false
+  require_images: false
+
+agent:
+  enabled: false
+  action_manifests: []
+
+tools:
+  enabled: true
+  lease_ttl_ms: 3000
+  # Action deadline. Set far beyond the 180 s scene so it can never fire: the scene rule is
+  # that only the model ends a scene (or the referee stops it). Callers must not pass timeout_ms.
+  invoke_timeout_ms: 600000
+  request_input_id: tool_request
+  response_output_id: tool_response
+  specs:
+    - tool_id: robot.run
+      implementation_id: piper.dual.tabletop
+      endpoint_id: robot.skill_server
+      operation: run
+      semantics: action
+      description: >-
+        Execute a Python block on the robot computer. The block can call the dual-arm
+        primitives (locate, move_to, home, wait, set_gripper, state, time_left) and the
+        handover skill described in the skill document. Variables persist between blocks
+        within a scene. Returns printed output, the error traceback if any, and elapsed time.
+      input_schema:
+        type: object
+        additionalProperties: false
+        required: [code]
+        properties:
+          code: {type: string, minLength: 1}
+      output_schema:
+        type: object
+        additionalProperties: false
+        required: [ok, output, error, elapsed_s, primitive_calls]
+        properties:
+          ok: {type: boolean}
+          output: {type: string}
+          error: {type: [string, "null"]}
+          elapsed_s: {type: number}
+          primitive_calls: {type: integer, minimum: 0}
+      readiness: []
+  providers:
+    - endpoint_id: robot.skill_server
+      input_id: run_tool_in
+      output_id: run_tool_out

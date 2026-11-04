@@ -1,0 +1,8 @@
+[11/04 10:14:31.785235][warning][27798][UsbEnumeratorLibusb.cpp:398] Failed to open USB device: error=Access denied (insufficient permissions). Try again
+[11/04 10:14:31.835337][warning][27798][UsbEnumeratorLibusb.cpp:407] Failed to open USB device (Access denied (insufficient permissions)), skipping, info.serial and infName may be empty
+[11/04 10:14:31.835623][info][27798][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[11/04 10:14:31.835629][info][27798][DeviceManager.cpp:25] Current found device(s): (1)
+[11/04 10:14:31.835630][info][27798][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: , Connection: USB3.0
+[11/04 10:14:31.835631][info][27798][DeviceManager.cpp:405] Enable net device enumeration: true
+[11/04 10:14:32.837903][info][27798][DeviceManager.cpp:25] Current device(s) list: (1)
+[11/04 10:14:32.837917][info][27798][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: , Connection: USB3.0

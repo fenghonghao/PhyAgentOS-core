@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PIPER 单臂 skill 策略与接口</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* layout idea: one reading column with wide tables and the data-flow diagram breaking out to the full container */
+  --bg: #f3f5f6;
+  --surface: #ffffff;
+  --ink: #16222a;
+  --muted: #5a6971;
+  --line: #d4dce0;
+  --accent: #a8690f;      /* learning loop, things to fill on site */
+  --accent-2: #0d6677;    /* API names, links */
+  --ok: #2c7a4b;
+  --warn: #a5520a;
+  --font-display: "IBM Plex Sans", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  --font-body: "IBM Plex Sans", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1418; --surface: #162027; --ink: #e2e9ec; --muted: #93a2aa; --line: #2a3842;
+    --accent: #e3a643; --accent-2: #56b6c6; --ok: #62c58d; --warn: #f0a25a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1418; --surface: #162027; --ink: #e2e9ec; --muted: #93a2aa; --line: #2a3842;
+  --accent: #e3a643; --accent-2: #56b6c6; --ok: #62c58d; --warn: #f0a25a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.65;
+}
+.wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 72px; }
+.col { max-width: 760px; }
+header .kicker { font-family: var(--font-mono); font-size: 13px; color: var(--muted); letter-spacing: .02em; }
+h1 { font-family: var(--font-display); font-size: 34px; line-height: 1.2; margin: 6px 0 12px; text-wrap: balance; font-weight: 700; }
+h2 { font-family: var(--font-display); font-size: 23px; margin: 48px 0 12px; padding-top: 14px; border-top: 1px solid var(--line); text-wrap: balance; }
+h3 { font-family: var(--font-display); font-size: 17px; margin: 22px 0 8px; }
+p { margin: 8px 0; }
+.lead { font-size: 17px; color: var(--ink); }
+.muted { color: var(--muted); }
+code, .mono { font-family: var(--font-mono); font-size: .9em; }
+code.api { color: var(--accent-2); font-weight: 500; }
+a { color: var(--accent-2); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+nav.toc { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 18px 0 4px; font-size: 14px; }
+nav.toc a { text-decoration: none; border-bottom: 1px solid var(--line); }
+nav.toc a:hover { border-color: var(--accent-2); }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 22px 0 0; }
+.fact { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; }
+.fact .k { font-size: 12.5px; color: var(--muted); }
+.fact .v { font-family: var(--font-mono); font-size: 14px; margin-top: 2px; overflow-wrap: anywhere; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; }
+.card h3 { margin-top: 0; }
+.card p { font-size: 15px; }
+.tag { display: inline-block; font-family: var(--font-mono); font-size: 11.5px; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--line); color: var(--muted); margin-left: 6px; vertical-align: 2px; }
+figure { margin: 18px 0 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px; }
+figure .scroll { overflow-x: auto; }
+figure svg { display: block; width: 100%; min-width: 760px; height: auto; color: var(--ink); }
+figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; }
+.diagram .box { fill: var(--surface); stroke: var(--ink); stroke-width: 1.2; }
+.diagram .group { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.diagram .t { fill: var(--ink); font-family: var(--font-body); font-size: 13px; font-weight: 600; }
+.diagram .s { fill: var(--muted); font-family: var(--font-body); font-size: 11.5px; }
+.diagram .lbl { fill: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+.diagram .edge { stroke: var(--ink); stroke-width: 1.3; fill: none; }
+.diagram .loop { stroke: var(--accent); stroke-width: 1.6; fill: none; stroke-dasharray: 6 4; }
+.diagram .loopl { fill: var(--accent); font-family: var(--font-mono); font-size: 11px; }
+.diagram .hl { fill: var(--surface); stroke: var(--accent); stroke-width: 1.6; }
+ol.steps { padding-left: 22px; margin: 8px 0; }
+ol.steps li { margin: 4px 0; }
+.tablewrap { overflow-x: auto; margin: 10px 0 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { font-size: 12.5px; color: var(--muted); font-weight: 600; background: var(--bg); }
+tr:last-child td { border-bottom: none; }
+td.sig { font-family: var(--font-mono); font-size: 13px; white-space: nowrap; color: var(--accent-2); }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 10px; border: 1px solid currentColor; }
+.pill.ok { color: var(--ok); }
+.pill.warn { color: var(--warn); }
+.pill.fill { color: var(--accent); }
+.playbooks { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 14px; }
+.pb { background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--accent-2); border-radius: 6px; padding: 14px 16px; }
+.pb h3 { margin-top: 0; }
+.pb .score { font-size: 14px; color: var(--muted); }
+.pb ol { padding-left: 20px; margin: 8px 0; font-size: 14.5px; }
+.pb .pit { font-size: 14px; border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 8px; }
+pre { font-family: var(--font-mono); font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; overflow-x: auto; line-height: 1.5; margin: 10px 0; }
+.files { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 10px; }
+.path { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+.path .p { font-family: var(--font-mono); font-size: 13.5px; overflow-wrap: anywhere; flex: 1 1 320px; }
+.path .d { font-size: 13.5px; color: var(--muted); flex: 1 1 220px; }
+button.copy { font-family: var(--font-body); font-size: 12.5px; padding: 3px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+button.copy:hover { border-color: var(--accent-2); }
+ul.tight { padding-left: 20px; margin: 8px 0; }
+ul.tight li { margin: 3px 0; }
+.note { border-left: 3px solid var(--accent); padding: 6px 12px; background: var(--surface); border-radius: 0 6px 6px 0; font-size: 15px; }
+@media (max-width: 420px) {
+  h1 { font-size: 27px; }
+  .wrap { padding: 22px 16px 56px; }
+  td.sig { white-space: normal; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">paos skill · piper-dual-tabletop 0.1.0 · 2026-11-03 晚</div>
+  <h1>PIPER 单臂 skill：策略与接口</h1>
+  <div class="col">
+    <p class="lead">比赛工位：一条 AgileX PIPER，桌后立杆上一台头部相机，手腕一台相机。模型只通过一个工具 <code class="api">robot.run(code)</code> 控制机器人：它写一整段 Python，调用定位、看图、抓放这些通用能力，把一道题做完。三类题的做法写在 SKILL.md 的任务手册里，供模型参考和改写。</p>
+  </div>
+  <nav class="toc" aria-label="目录">
+    <a href="#strategy">策略</a><a href="#flow">数据流</a><a href="#scene">一场怎么跑</a><a href="#api">接口</a>
+    <a href="#playbooks">任务手册</a><a href="#verify">验证</a><a href="#onsite">现场要填</a><a href="#files">代码在哪</a>
+  </nav>
+  <div class="facts">
+    <div class="fact"><div class="k">比赛 profile</div><div class="v">real-piper</div></div>
+    <div class="fact"><div class="k">规划模型</div><div class="v">deepseek-flash · 开思考</div></div>
+    <div class="fact"><div class="k">看图模型</div><div class="v">deepseek-flash · 关思考</div></div>
+    <div class="fact"><div class="k">单元测试</div><div class="v">77 通过</div></div>
+  </div>
+</header>
+
+<section id="strategy">
+  <h2>策略</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>模型现场写代码<span class="tag">PyRUA-Lean</span></h3>
+      <p>模型一次写一整段代码完成整题：定位、抓、放、检查都在同一段里，循环、分支、空抓重试也写在代码里。输出有问题就再写一小段修补，前面定义的变量和函数还在。</p>
+    </div>
+    <div class="card">
+      <h3>任务手册写成文字<span class="tag">PyRUA-RSI 思路</span></h3>
+      <p>三类题固定，经验写进 SKILL.md：计分要点、步骤、判断点和坑、参考代码。不做成函数：保密题和公开题同类不同细节，函数等于对公开题过拟合。参考代码是起点，模型按场景改。</p>
+    </div>
+    <div class="card">
+      <h3>看图交给 deepseek-flash</h3>
+      <p>位置来自 SAM3 分割加深度（<code class="api">locate</code>）；物体是什么、数字是几、朝哪边，问看图模型（<code class="api">look</code> / <code class="api">inspect</code> / <code class="api">orient</code>）。小字用腕部相机逐个近拍、转正后拼成一张图问一次。</p>
+    </div>
+    <div class="card">
+      <h3>动作照着扣分规则设计</h3>
+      <p>碰容器扣 50、碰其他物体扣 10，所以抓放都是竖直下降、竖直抬起；松手只再张开 1.5 cm；放进容器时在中心、物体底部高出沿口 3 cm 处松手，夹爪不进容器；目标越过挡板就拒绝移动。</p>
+    </div>
+    <div class="card">
+      <h3>没有超时停止</h3>
+      <p>一场只在模型调用 <code class="api">forge_task_finalize</code> 或裁判停机时结束。每次模型请求和 <code class="api">time_left()</code> 都给出剩余秒数，只作参考。</p>
+    </div>
+    <div class="card">
+      <h3>经验由人工总结</h3>
+      <p>11-04 每跑一道公开题，<code class="api">scene_digest.py</code> 出一页摘要，据此更新手册，跑测试，重装；17:00 封存前冻结。PAOS 的自动 evolution 关掉，不让未审阅的内容写进 SKILL.md。</p>
+    </div>
+  </div>
+</section>
+
+<section id="flow">
+  <h2>数据流</h2>
+  <figure>
+    <div class="scroll">
+    <svg class="diagram" viewBox="0 0 1000 410" role="img" aria-label="题目经 PAOS agent 变成 robot.run 代码块，skill_server 执行代码、调用定位和看图模型、驱动运动控制和机械臂；每场的台账经摘要工具回到 SKILL.md 手册。">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+        <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c98316"/></marker>
+      </defs>
+      <!-- left column: PAOS side -->
+      <rect class="box" x="20" y="18" width="170" height="44" rx="5"/>
+      <text class="t" x="105" y="38" text-anchor="middle">run_scene.sh</text>
+      <text class="s" x="105" y="54" text-anchor="middle">题目 + 目标图像路径</text>
+      <rect class="box" x="20" y="76" width="170" height="52" rx="5"/>
+      <text class="t" x="105" y="98" text-anchor="middle">PAOS agent</text>
+      <text class="s" x="105" y="115" text-anchor="middle">deepseek-flash · 开思考</text>
+      <rect class="hl" x="20" y="200" width="170" height="52" rx="5"/>
+      <text class="t" x="105" y="222" text-anchor="middle">SKILL.md</text>
+      <text class="s" x="105" y="239" text-anchor="middle">接口 + 三份任务手册</text>
+      <rect class="hl" x="20" y="330" width="170" height="52" rx="5"/>
+      <text class="t" x="105" y="352" text-anchor="middle">scene_digest.py</text>
+      <text class="s" x="105" y="369" text-anchor="middle">一页摘要 → 我改手册</text>
+      <line class="edge" x1="105" y1="62" x2="105" y2="74" marker-end="url(#arr)"/>
+      <line class="edge" x1="105" y1="200" x2="105" y2="130" marker-end="url(#arr)"/>
+      <text class="lbl" x="112" y="170">activate_skill</text>
+      <!-- gateway -->
+      <rect class="box" x="250" y="76" width="140" height="52" rx="5"/>
+      <text class="t" x="320" y="98" text-anchor="middle">Gateway</text>
+      <text class="s" x="320" y="115" text-anchor="middle">robot.run Action</text>
+      <line class="edge" x1="190" y1="102" x2="248" y2="102" marker-end="url(#arr)"/>
+      <text class="lbl" x="219" y="94" text-anchor="middle">code</text>
+      <!-- skill_server -->
+      <rect class="group" x="440" y="18" width="280" height="376" rx="8"/>
+      <text class="s" x="580" y="40" text-anchor="middle">skill_server（Dora 节点）</text>
+      <rect class="box" x="460" y="76" width="240" height="52" rx="5"/>
+      <text class="t" x="580" y="98" text-anchor="middle">执行器 · 沙箱</text>
+      <text class="s" x="580" y="115" text-anchor="middle">只准 numpy/math 等，禁文件网络</text>
+      <rect class="box" x="460" y="145" width="240" height="44" rx="5"/>
+      <text class="t" x="580" y="164" text-anchor="middle">原语 + pick / place</text>
+      <text class="s" x="580" y="180" text-anchor="middle">move_to · set_gripper · place_in</text>
+      <rect class="box" x="460" y="210" width="96" height="44" rx="5"/>
+      <text class="t" x="508" y="229" text-anchor="middle">SAM3 定位</text>
+      <text class="s" x="508" y="245" text-anchor="middle">locate(_all)</text>
+      <rect class="box" x="566" y="210" width="134" height="44" rx="5"/>
+      <text class="t" x="633" y="229" text-anchor="middle">看图客户端</text>
+      <text class="s" x="633" y="245" text-anchor="middle">look·inspect·orient</text>
+      <rect class="box" x="460" y="330" width="240" height="52" rx="5"/>
+      <text class="t" x="580" y="352" text-anchor="middle">台账 · look 图片</text>
+      <text class="s" x="580" y="369" text-anchor="middle">每段代码、输出、每次调用</text>
+      <line class="edge" x1="390" y1="102" x2="458" y2="102" marker-end="url(#arr)"/>
+      <text class="lbl" x="414" y="94" text-anchor="middle">代码块</text>
+      <line class="edge" x1="580" y1="128" x2="580" y2="143" marker-end="url(#arr)"/>
+      <line class="edge" x1="508" y1="189" x2="508" y2="208" marker-end="url(#arr)"/>
+      <line class="edge" x1="633" y1="189" x2="633" y2="208" marker-end="url(#arr)"/>
+      <line class="edge" x1="580" y1="254" x2="580" y2="328" marker-end="url(#arr)"/>
+      <text class="lbl" x="588" y="296">记录</text>
+      <!-- right column: robot side -->
+      <rect class="box" x="780" y="18" width="200" height="44" rx="5"/>
+      <text class="t" x="880" y="37" text-anchor="middle">PIPER 机械臂</text>
+      <text class="s" x="880" y="53" text-anchor="middle">CAN 驱动</text>
+      <rect class="box" x="780" y="145" width="200" height="44" rx="5"/>
+      <text class="t" x="880" y="164" text-anchor="middle">motion_server</text>
+      <text class="s" x="880" y="180" text-anchor="middle">IK · 轨迹 · 夹爪控制</text>
+      <rect class="box" x="780" y="210" width="200" height="44" rx="5"/>
+      <text class="t" x="880" y="229" text-anchor="middle">头部相机 · 腕部相机</text>
+      <text class="s" x="880" y="245" text-anchor="middle">彩色 + 对齐深度</text>
+      <rect class="box" x="780" y="300" width="200" height="44" rx="5"/>
+      <text class="t" x="880" y="319" text-anchor="middle">DeepSeek API</text>
+      <text class="s" x="880" y="335" text-anchor="middle">图 + 问题 → JSON</text>
+      <line class="edge" x1="700" y1="167" x2="778" y2="167" marker-end="url(#arr)"/>
+      <text class="lbl" x="739" y="159" text-anchor="middle">位姿目标</text>
+      <line class="edge" x1="880" y1="145" x2="880" y2="64" marker-end="url(#arr)"/>
+      <text class="lbl" x="888" y="108">关节轨迹</text>
+      <line class="edge" x1="778" y1="232" x2="702" y2="232" marker-end="url(#arr)"/>
+      <text class="lbl" x="739" y="224" text-anchor="middle">图像</text>
+      <path class="edge" d="M700,248 L745,248 L745,322 L778,322" marker-end="url(#arr)"/>
+      <text class="lbl" x="752" y="290">问答</text>
+      <!-- learning loop -->
+      <line class="loop" x1="460" y1="356" x2="192" y2="356" marker-end="url(#arrA)"/>
+      <text class="loopl" x="326" y="348" text-anchor="middle">每场的记录</text>
+      <line class="loop" x1="105" y1="330" x2="105" y2="254" marker-end="url(#arrA)"/>
+      <text class="loopl" x="112" y="296">11-04 改手册</text>
+    </svg>
+    </div>
+    <figcaption>题目经 PAOS agent 变成一段段 Python，在 skill_server 里执行；定位用本地 SAM3 和深度，认东西问 DeepSeek，动作经 motion_server 到机械臂。虚线是经验回路：每场记录压成摘要，由人改进手册，封存前冻结。</figcaption>
+  </figure>
+</section>
+
+<section id="scene">
+  <h2>一场怎么跑</h2>
+  <div class="col">
+    <ol class="steps">
+      <li>队员运行 <code>./run_scene.sh pub-1 "&lt;题目&gt;" [目标图像]</code>：写入本场截止时间（<code>SCENE_LIMIT_S</code>，默认 180 s），启动 <code>paos agent</code>。</li>
+      <li>模型 <code class="api">activate_skill</code> 读到 SKILL.md（接口 + 手册），<code class="api">forge_task_create</code> 建任务。</li>
+      <li>模型按对应手册写一整段代码，<code class="api">forge_tool_start_action("robot.run", {"code": …}, wait=true)</code> 执行，同一次调用拿回打印输出。</li>
+      <li>输出显示没完成就写修补段；完成后 <code class="api">forge_task_finalize</code>。裁判看最终状态计分。</li>
+      <li>跑完 <code>python3 dev/scene_digest.py</code>，得到本场摘要，用来改手册。</li>
+    </ol>
+    <p class="note">任务怎么下发（是否给 PAOS 发自然语言、目标图像什么形式）、"完成信号"指什么，手册没写，明早先问组委会；现在的入口按"自然语言 + 图像路径交给 PAOS"准备。</p>
+  </div>
+</section>
+
+<section id="api">
+  <h2>接口（模型在 robot.run 里能用的名字）</h2>
+  <p class="col muted">单臂工位不写臂名：<code>move_to([x, y, z])</code>、<code>set_gripper("open")</code>、<code>home()</code>。世界坐标是机械臂底座系：x 向前、y 向左、z 向上，单位米；角度用度。业务结果作为返回值，硬件故障抛 <code>RobotFault</code>。</p>
+
+  <h3>看</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>调用</th><th>做什么</th><th>要点</th></tr></thead>
+    <tbody>
+      <tr><td class="sig">locate(text, near=None, …) → Sight</td><td>按英文名词找一个物体并测量</td><td>头部相机先看，必要时空夹爪把腕部相机移到物体上方复测；<code>near</code> 锁定某个实例；<code>usable</code> 为真才可抓</td></tr>
+      <tr><td class="sig">locate_all(text) → [Sight]</td><td>一张头部图里列出所有实例</td><td>用来数、比较、分类；抓之前由 <code>pick</code> 自动精测</td></tr>
+      <tr><td class="sig">look(question, marks=, image=, json=, zoom=)</td><td>把当前相机画面发给看图模型提问</td><td><code>marks</code> 画编号圈；<code>image</code> 附目标图像；只用来认东西，位置不信模型</td></tr>
+      <tr><td class="sig">inspect(objects, question, json=)</td><td>腕部相机逐个近拍，问一次</td><td>每个物体一格、按块边转正；顺路精测，之后 <code>pick</code> 不用再飞</td></tr>
+      <tr><td class="sig">orient(objects, labels=) → [deg]</td><td>印字的"上"朝哪个世界方向</td><td>四个转向副本选正的一张，三次投票；<code>labels</code> 防 6/9 混淆</td></tr>
+      <tr><td class="sig">heading_of(direction, at, camera=)</td><td>图像里的上下左右 → 世界朝向</td><td><code>camera="tile"</code> 用于转正后的格子</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>拿放</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>调用</th><th>做什么</th><th>失败原因</th></tr></thead>
+    <tbody>
+      <tr><td class="sig">pick(target) → PickResult</td><td>悬停 → 张开到合适宽度 → 竖直下降 → 闭合 → 竖直抬起；空抓后精测再试一次</td><td><code>not_found</code> <code>not_usable</code> <code>already_holding</code> <code>empty_grasp</code> 运动原因</td></tr>
+      <tr><td class="sig">place_at(xy, surface_z=, yaw_deg=) → PlaceResult</td><td>竖直放到某点，底部离面 1 cm 松手；<code>yaw_deg</code> 先转物体</td><td><code>not_holding</code> 运动原因</td></tr>
+      <tr><td class="sig">place_in(container) → PlaceResult</td><td>容器中心、高出沿口 3 cm 松手，夹爪不进容器；够不到依次试 0/−30/−45° 倾角</td><td><code>not_holding</code> <code>container_not_measured</code> 运动原因</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>运动、夹爪、状态、常量</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>调用</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td class="sig">move_to(xyz, yaw_deg=, tilt_deg=, path=) → Move</td><td><code>path</code>：auto / line（贴近物体时走直线）/ joint；原因 <code>ik_failed</code> <code>joint_limit</code> <code>outside_workspace</code></td></tr>
+      <tr><td class="sig">home() · set_gripper("open"|"close", width_m=) · wait(*h)</td><td>回初始位（不挡头部相机）；夹爪返回 <code>holding</code>、开口</td></tr>
+      <tr><td class="sig">state() → ArmState</td><td><code>tcp_xyz</code> <code>yaw_deg</code> <code>tilt_deg</code> <code>gripper_width_m</code> <code>holding</code> <code>held</code>（夹着的物体尺寸）</td></tr>
+      <tr><td class="sig">time_left()</td><td>本场剩余秒数，只作参考</td></tr>
+      <tr><td class="sig">TOPDOWN_MAX_Z · TABLE_Z · READ_UP_DEG · READ_RIGHT_DEG</td><td>竖直朝下能到的最高点、桌面高度、裁判读等式的方向（字头朝向、从左到右的方向）</td></tr>
+    </tbody>
+  </table></div>
+  <p class="col muted">沙箱：只准 import numpy、math、time、itertools、functools、collections、random；没有文件、进程、网络；以 <code>_</code> 开头的属性和帧对象属性一律拒绝。</p>
+</section>
+
+<section id="playbooks">
+  <h2>三份任务手册（SKILL.md 里，文字 + 参考代码）</h2>
+  <div class="playbooks">
+    <div class="pb">
+      <h3>A · 目标物品进容器</h3>
+      <div class="score">进容器 100，容器外 10 cm 内 50；碰其他物体 −10，碰容器 −50；多件取平均。</div>
+      <ol>
+        <li>从目标图像和题目定出"哪件放哪个容器"，用相机里看到的英文名称；拿不准就画编号圈让模型配对。</li>
+        <li><code>home()</code>，空夹爪时先测所有容器。</li>
+        <li>每件 <code>pick</code> → <code>place_in</code>；放不进就放在容器边 10 cm 内拿一半分。</li>
+        <li>回位检查：物体在容器范围内，容器没动。</li>
+      </ol>
+      <div class="pit">坑：夹爪绝不进容器；"object may not fit" 提示时仍对中松手。</div>
+    </div>
+    <div class="pb">
+      <h3>B · 积木和水果分类</h3>
+      <div class="score">得分 = 初始散置件中归位的比例；最后检查所有积木和水果。</div>
+      <ol>
+        <li><code>locate_all</code> 多个说法找全，<code>look(marks=)</code> 标积木/水果。</li>
+        <li>每类找成员最多的那一团，团外的就是散置件（通常 1–2 件）。</li>
+        <li>散置件放到本类旁边、背离另一类、离所有物体约 7 cm 的空位。</li>
+        <li>已归类的不动；最后重新列一遍。</li>
+      </ol>
+      <div class="pit">坑：标错类会搬错，存疑就 <code>inspect</code>；起始就混在一起时，划两个区各搬少数。</div>
+    </div>
+    <div class="pb">
+      <h3>C · 数字等式</h3>
+      <div class="score">3 个数字 + 1 个运算符 + 等号排成一行：结构 50，成立再 50。</div>
+      <ol>
+        <li><code>locate_all</code> 找到 8 块，<code>inspect</code> 近拍读出每块；检查是否正好 3 个数字加 + − × ÷ = 各一个。</li>
+        <li>枚举成立的等式（÷ 要整除）。</li>
+        <li><code>orient</code> 五块的朝向。</li>
+        <li>沿 <code>READ_RIGHT_DEG</code> 选一条空的直线，按阅读顺序摆放，每块转到字头朝 <code>READ_UP_DEG</code>。</li>
+      </ol>
+      <div class="pit">坑：+ 和 × 差 45°；"−" 竖过来像 1；6/9 颠倒。五块搬完占大半时间，先定好整行再动。</div>
+    </div>
+  </div>
+  <p class="col muted">手册开头写明：参考代码是起点，按实际场景改写。参考代码原样在假世界里跑通（<code>tests/test_skill_examples.py</code>）。</p>
+</section>
+
+<section id="verify">
+  <h2>验证（11-03 晚）</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>检查</th><th>结果</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>单元测试</td><td class="num"><span class="pill ok">77 通过</span></td><td>单臂接口、locate_all/near、pick→place_in、工作区、看图请求、inspect/orient、沙箱逃逸、三份手册参考代码</td></tr>
+      <tr><td>PAOS 全链路（MuJoCo 单臂）</td><td class="num"><span class="pill ok">通过</span></td><td>经 Gateway 跑 robot.run：move_to 误差 5.4 mm；带臂名的旧写法 1.8 mm；夹爪正常</td></tr>
+      <tr><td>看图：整图画圈读 8 块</td><td class="num"><span class="pill warn">字符 5/8</span></td><td>头部 640×480 下字只有十来个像素</td></tr>
+      <tr><td>看图：inspect 近拍转正</td><td class="num"><span class="pill ok">字符 8/8</span></td><td>真调 deepseek-flash，渲染的数字/符号块</td></tr>
+      <tr><td>看图：orient 朝向</td><td class="num"><span class="pill ok">8/8，两次</span></td><td>约 2 s；带上已识别字符后 6/9 不再弄反</td></tr>
+      <tr><td>模型照手册写代码：搬运</td><td class="num"><span class="pill ok">4/4</span></td><td>约 62–84 s；含换物体和容器的变体题</td></tr>
+      <tr><td>模型照手册写代码：分类</td><td class="num"><span class="pill ok">3/4</span></td><td>约 68–79 s；失败那次是沙箱误拦 numpy，已修</td></tr>
+      <tr><td>模型照手册写代码：等式</td><td class="num"><span class="pill warn">4/4，153–173 s</span></td><td>离 180 s 很近；真机要靠提速</td></tr>
+    </tbody>
+  </table></div>
+  <p class="col muted">"模型照手册写代码"是离线试验（<code>dev/llm_trial_booth.py</code>）：deepseek-flash 开思考，假世界，看图用真值替身，时间 = 模型耗时 + 每次移动按 2.5 s 估算。</p>
+</section>
+
+<section id="onsite">
+  <h2>现场要填、要确认的</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>项目</th><th>位置</th><th>状态</th></tr></thead>
+    <tbody>
+      <tr><td>头部、腕部相机内外参（组委会给）、桌面高度 <code>table_z</code></td><td class="mono">profiles/real-piper/skill_server.yaml</td><td><span class="pill fill">待填</span></td></tr>
+      <tr><td>两台相机的序列号</td><td class="mono">camera_head.yaml · camera_wrist.yaml</td><td><span class="pill fill">待填</span></td></tr>
+      <tr><td>CAN 口名、初始位不碰立杆和挡板</td><td class="mono">profiles/real-piper/piper.yaml</td><td><span class="pill fill">待确认</span></td></tr>
+      <tr><td>挡板和立杆的工作区边界</td><td class="mono">robot.workspace</td><td><span class="pill fill">待量</span></td></tr>
+      <tr><td>裁判读等式的方向</td><td class="mono">robot.read_up_deg · read_right_deg</td><td><span class="pill fill">待问</span></td></tr>
+      <tr><td>竖直可达高度、夹爪最大开口、holding 阈值</td><td class="mono">robot.topdown_max_z 等</td><td><span class="pill fill">待复测</span></td></tr>
+      <tr><td>关掉 PAOS evolution</td><td class="mono">~/.PhyAgentOS/config.json</td><td><span class="pill fill">明早</span></td></tr>
+    </tbody>
+  </table></div>
+  <div class="col">
+    <p>明早先问组委会：任务怎么下发、目标图像什么形式、完成信号是什么、能否直连 CAN 和相机、执行时限、等式从哪一侧读、各项阈值。完整清单在规格文档 §10、§13.4。</p>
+  </div>
+</section>
+
+<section id="files">
+  <h2>代码在哪</h2>
+  <div class="files">
+    <div class="path"><span class="p" id="p-repo">/home/bsb/PhyAgentOS-core/example/piper-dual-tabletop/</span><span class="d">仓库里的 skill 包源码（改这里），未提交</span><button class="copy" type="button" data-target="p-repo">复制</button></div>
+    <div class="path"><span class="p" id="p-inst">~/.PhyAgentOS/skills/piper-dual-tabletop/</span><span class="d">PAOS 安装后的副本，和仓库一致</span><button class="copy" type="button" data-target="p-inst">复制</button></div>
+    <div class="path"><span class="p" id="p-dist">/home/bsb/PhyAgentOS-core/dist/piper-dual-tabletop-0.1.0.tar.gz</span><span class="d">打好的包</span><button class="copy" type="button" data-target="p-dist">复制</button></div>
+    <div class="path"><span class="p" id="p-spec">/home/bsb/PhyAgentOS-core/docs/superpowers/specs/2026-11-03-paizhou-track2-robot-api.md</span><span class="d">规格文档：§10 现场清单，§13 单臂设计</span><button class="copy" type="button" data-target="p-spec">复制</button></div>
+  </div>
+  <h3>包内文件（相对 piper-dual-tabletop/）</h3>
+<pre>SKILL.md                         模型读的文档：接口 + 三份任务手册
+DESIGN.md                        A 方案说明（设计、配置、验证、风险）
+skill.yaml                       manifest：real-piper / sim-piper
+start.sh  run_scene.sh  README.md
+nodes/skill_server/src/tabletop/
+  primitives.py    原语、单臂接口、locate / locate_all / look / inspect / orient / heading_of
+  skills.py        pick / place_at / place_in（双臂时还有 handover）
+  vision.py        看图客户端：画编号圈、近拍拼图、转向副本、重试
+  perception.py    相机帧、相机位姿、SAM3 分割
+  executor.py      robot.run 沙箱
+  dora_node.py     Dora 节点、Forge Action、配置装配
+  dora_backend.py  motion_server / 夹爪的 Dora 客户端
+  kinematics.py  geometry.py  types.py  fake.py（假世界）
+nodes/skill_server/tests/        77 个测试；test_skill_examples.py 跑手册参考代码
+profiles/real-piper/             比赛用：驱动、运动、两台相机、skill_server.yaml
+dev/llm_trial_booth.py           模型照手册写代码的离线试验（含变体题）
+dev/scene_digest.py              每场一页摘要
+dev/legacy/                      旧的双臂 profile（不进包）</pre>
+</section>
+
+</div>
+<script>
+document.querySelectorAll("button.copy").forEach(function (b) {
+  b.addEventListener("click", function () {
+    var t = document.getElementById(b.getAttribute("data-target")).textContent;
+    var done = function (msg) { b.textContent = msg; setTimeout(function () { b.textContent = "复制"; }, 1500); };
+    try {
+      navigator.clipboard.writeText(t).then(function () { done("已复制"); }, function () { done("请手动复制"); });
+    } catch (e) { done("请手动复制"); }
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,153 @@
+# Single AgileX PIPER (competition booth): gateway -> skill_server -> motion_server -> jtc ->
+# driver, plus the gripper controller. Cameras: head (pole-mounted, depth) + wrist (Orbbec nodes;
+# swap run_camera.sh kind/config for RealSense or USB on site).
+# The arm is called "left" inside skill_server (input names left_*); model code never names it.
+nodes:
+- id: gateway
+  path: ${FORGE_RUNTIME_BIN}/gateway
+  args: --config gateway.yaml
+  inputs:
+    tick: dora/timer/millis/50
+    run_tool_in:
+      source: skill_server/tool_out
+      queue_size: 1000
+  outputs:
+  - tool_response
+  - run_tool_out
+- id: skill_server
+  path: ${PAOS_SKILL_ROOT}/nodes/run_skill_server.sh
+  args: --config skill_server.yaml
+  inputs:
+    tick: dora/timer/millis/20
+    tool_in:
+      source: gateway/run_tool_out
+      queue_size: 1000
+    head_color:
+      source: cam_head/image/color
+      queue_size: 1
+    head_depth:
+      source: cam_head/image/depth
+      queue_size: 1
+    wrist_color:
+      source: cam_wrist/image/color
+      queue_size: 1
+    wrist_depth:
+      source: cam_wrist/image/depth
+      queue_size: 1
+    left_state: piper/state
+    left_move_pose_result:
+      source: motion/move_pose_result
+      queue_size: 1000
+    left_move_joints_result:
+      source: motion/move_joints_result
+      queue_size: 1000
+    left_gripper_result:
+      source: gripper/gripper_result
+      queue_size: 1000
+  outputs:
+  - tool_out
+  - left_move_pose_goal
+  - left_move_pose_cancel
+  - left_move_joints_goal
+  - left_move_joints_cancel
+  - left_gripper_goal
+  - left_gripper_cancel
+- id: motion
+  path: ${FORGE_RUNTIME_BIN}/motion_server
+  args: --config motion_server.yaml
+  inputs:
+    tick: dora/timer/millis/20
+    joint_state: piper/state
+    move_joints_goal:
+      source: skill_server/left_move_joints_goal
+      queue_size: 1000
+    move_joints_cancel:
+      source: skill_server/left_move_joints_cancel
+      queue_size: 1000
+    move_pose_goal:
+      source: skill_server/left_move_pose_goal
+      queue_size: 1000
+    move_pose_cancel:
+      source: skill_server/left_move_pose_cancel
+      queue_size: 1000
+    trajectory_feedback:
+      source: jtc/trajectory_feedback
+      queue_size: 1000
+    trajectory_result:
+      source: jtc/trajectory_result
+      queue_size: 1000
+  outputs:
+  - move_joints_feedback
+  - move_joints_result
+  - move_pose_feedback
+  - move_pose_result
+  - trajectory_goal
+  - trajectory_cancel
+- id: jtc
+  path: ${FORGE_RUNTIME_BIN}/joint_trajectory_controller
+  args: --config controller.yaml
+  inputs:
+    tick: dora/timer/millis/20
+    joint_state: piper/state
+    trajectory_goal:
+      source: motion/trajectory_goal
+      queue_size: 1000
+    trajectory_cancel:
+      source: motion/trajectory_cancel
+      queue_size: 1000
+  outputs:
+  - joint_command
+  - trajectory_feedback
+  - trajectory_result
+- id: gripper
+  path: ${FORGE_RUNTIME_BIN}/gripper_action_controller
+  args: --config gripper_controller.yaml
+  inputs:
+    tick: dora/timer/millis/20
+    joint_state: piper/state
+    gripper_goal:
+      source: skill_server/left_gripper_goal
+      queue_size: 1000
+    gripper_cancel:
+      source: skill_server/left_gripper_cancel
+      queue_size: 1000
+  outputs:
+  - joint_command
+  - gripper_feedback
+  - gripper_result
+- id: piper
+  path: ${FORGE_RUNTIME_BIN}/robots_agilex_piper
+  args: --config piper.yaml
+  inputs:
+    tick: dora/timer/millis/20
+    action/arm: jtc/joint_command
+    action/gripper: gripper/joint_command
+  outputs:
+  - state
+- id: cam_head
+  path: ${PAOS_SKILL_ROOT}/nodes/run_camera.sh
+  args: orbbec --config camera_head.yaml
+  inputs:
+    tick: dora/timer/millis/100  # 1080p: 10 MB a frame with depth; nothing needs it faster
+  outputs:
+  - image/color
+  - image/depth
+  - _shm_reclaim  # inline release-notification pump; intentionally has no subscribers
+- id: cam_wrist
+  path: ${PAOS_SKILL_ROOT}/nodes/run_camera.sh
+  args: orbbec --config camera_wrist.yaml
+  inputs:
+    tick: dora/timer/millis/33
+  outputs:
+  - image/color
+  - image/depth
+  - _shm_reclaim
+# Read-only live view (scripts/live_view): a dynamic node that only receives the camera frames; it starts
+# nothing and sends nothing. Nobody has to attach it: an unattached dynamic node blocks neither start nor stop.
+- id: live_view
+  path: dynamic
+  inputs:
+    head_color: {source: cam_head/image/color, queue_size: 1}
+    head_depth: {source: cam_head/image/depth, queue_size: 1}
+    wrist_color: {source: cam_wrist/image/color, queue_size: 1}
+    wrist_depth: {source: cam_wrist/image/depth, queue_size: 1}

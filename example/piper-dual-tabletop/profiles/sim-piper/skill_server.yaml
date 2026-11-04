@@ -1,0 +1,19 @@
+# Single-arm MuJoCo check of the full chain: gateway -> skill_server -> motion_server -> jtc -> sim.
+# World frame = the sim arm's base frame (no table calibration in this profile).
+arms:
+  left:
+    urdf: ../../assets/robots/piper/piper_with_gripper.urdf
+    base_xyz: [0.0, 0.0, 0.0]
+    base_rpy_deg: [0.0, 0.0, 0.0]
+    home_joints: [0.0, 0.0383, -0.0708, 0.0, 0.008, 0.0]
+    max_opening_m: 0.07
+motion:
+  velocity_scale: 0.6
+  acceleration_scale: 0.6
+  line_step_m: 0.02
+  auto_line_max_m: 0.12
+robot:
+  table_z: 0.0
+  deadline_file: /tmp/paos_scene_deadline
+ledger_path: ~/.PhyAgentOS/logs/piper-dual-tabletop/sim-ledger.jsonl
+show_dir: ~/.PhyAgentOS/logs/piper-dual-tabletop/show   # image files of show()

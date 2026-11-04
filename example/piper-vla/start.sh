@@ -64,6 +64,17 @@ if [ "$SIM" -eq 0 ]; then
   echo "== cameras"
   id -nG | grep -qw video && ok "user in video group" \
     || warn "this session is not in the video group (after usermod, log out and in again); cameras may lack access"
+  echo "== camera exposure"
+  # Fixed for this run, measured from the head camera's auto exposure. The scale brings the image
+  # to the brightness chosen in the booth: auto gave about 1700 us, 2500 us was chosen (2026-11-04).
+  RUN_DIR="$HOME/.PhyAgentOS/run/piper-vla"; mkdir -p "$RUN_DIR"
+  if out="$(cd "$RUN_DIR" && "$VLA_VENV/bin/python" "$HERE/scripts/lock_exposure.py" \
+      "$HERE/profiles/$PROFILE/camera_head.yaml" camera_exposure_us \
+      --scale "${EXPOSURE_SCALE:-1.47}" 2>&1)"; then
+    ok "$(printf '%s\n' "$out" | grep '^exposure:')"
+  else
+    bad "exposure not measured: $(printf '%s\n' "$out" | tail -1)"
+  fi
 fi
 
 echo "== GPU"
