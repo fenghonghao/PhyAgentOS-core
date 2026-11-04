@@ -360,11 +360,6 @@ def test_place_works_after_a_grasp_made_by_hand(robot, world):
     assert p.ok and p.release_xyz[2] == pytest.approx(0.01 + s.grasp_xyz[2])
 
 
-def test_place_without_something_held_moves_nothing(robot, world):
-    p = robot.place([0.20, 0.15])
-    assert not p.ok and p.reason == "not_holding" and world.moves == []
-
-
 def test_place_yaw_turns_the_object(robot, world):
     robot.pick(robot.locate("red block")[0])
     before = world.boxes["red block"].yaw_deg
@@ -544,3 +539,39 @@ def test_no_grip_snapshots_unless_configured(robot):
     robot.ledger.drain()
     robot.set_gripper(0.05)
     assert "before_images" not in robot.ledger.drain()[-1]["args"]
+
+
+# ---------------------------------------------------------------- the middle of the fruit, not of its stem
+
+def with_a_stem(s, along=0.0):
+    """A mask 5.7 x 2.4 cm: most of its points on the fruit at one end, a few along the stem."""
+    x, y = s.center_xyz[:2]
+    fruit = np.column_stack([np.full(90, x + 0.017), np.full(90, y), np.full(90, 0.01)])
+    stem = np.column_stack([np.linspace(x - 0.028, x + 0.005, 10), np.full(10, y), np.full(10, 0.002)])
+    s.points = np.vstack([fruit, stem])
+    s.size = [0.057, 0.024, 0.012]
+    return s
+
+
+def test_pick_closes_where_most_of_a_long_thin_object_is(robot, world):
+    s = with_a_stem(robot.locate("flat star")[0])
+    x, y = s.center_xyz[:2]
+    assert robot.pick(s).ok
+    down = world.moves[1]["xyz"]
+    assert down[:2] == pytest.approx([x + 0.017, y], abs=1e-6)
+
+
+def test_pick_keeps_the_middle_of_a_compact_object(robot, world):
+    s = robot.locate("flat star")[0]
+    x, y = s.center_xyz[:2]
+    s.points = np.array([[x + 0.01, y, 0.01]] * 50)                  # seen from one side only
+    assert robot.pick(s).ok
+    assert world.moves[1]["xyz"][:2] == pytest.approx([x, y], abs=1e-6)
+
+
+def test_place_goes_ahead_when_the_fingers_feel_nothing(robot, world):
+    """A stem pinched flat reads like empty fingers: the model looks, and it may still put it down."""
+    assert not robot.state().holding
+    p = robot.place([0.30, -0.05])
+    assert p.ok and p.reason is None, p
+    assert world.moves[-2]["xyz"][:2] == pytest.approx([0.30, -0.05], abs=1e-6)

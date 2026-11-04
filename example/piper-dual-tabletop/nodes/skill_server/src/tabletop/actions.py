@@ -23,6 +23,7 @@ from .types import ArmState, Cancelled, Drag, Grip, Move, Pick, Place, RobotFaul
 PATHS = ("auto", "line", "joint")
 RISE_FIRST_M = 0.02        # a move that ends this much higher rises on the spot first, to clear what is near
 DROP_LAST_M = 0.05         # a move that ends this much lower crosses at the start's height and comes down last
+LONG_THIN_RATIO = 1.8      # a find this much longer than wide is closed on where most of its points are
 KEEP_YAW_DEG = 95.0        # a closing line this far from the tangent can stay (joint 6 stops at 100)
 
 
@@ -312,13 +313,21 @@ class ArmActions:
             return float(s.open_width_m)
         return min(float(s.size[1]) + self.cfg.open_margin_m, most)
 
+    @staticmethod
+    def _grasp_xy(s: Sight) -> tuple[float, float]:
+        """The middle of what was found, or of most of it when it is long and thin: a cherry found
+        with its stem has its rectangle's middle on the stem and most of its points on the fruit."""
+        if s.points is not None and len(s.points) and s.size[0] >= LONG_THIN_RATIO * s.size[1]:
+            return float(np.median(s.points[:, 0])), float(np.median(s.points[:, 1]))
+        return float(s.center_xyz[0]), float(s.center_xyz[1])
+
     def _pick(self, s: Sight, z: float | None, yaw_deg: float | None, width_m: float | None) -> Pick:
         problem = self._precheck(s, z)
         if problem:
             return Pick(ok=False, reason=problem[0], detail=problem[1])
         grasp_z = float(z) if z is not None else float(s.grasp_xyz[2])
         width = self._open_width(s, width_m)
-        x, y = float(s.center_xyz[0]), float(s.center_xyz[1])
+        x, y = self._grasp_xy(s)
         try:
             yaw, tilt, plans = self._find_route(
                 x, y, grasp_z, self._grasp_yaws(s, yaw_deg), width,
@@ -346,8 +355,6 @@ class ArmActions:
                           lambda: self._place(target, bottom_z, yaw_deg))
 
     def _place(self, target, bottom_z: float | None, yaw_deg: float | None) -> Place:
-        if not self._holding:
-            return Place(ok=False, reason="not_holding")
         if isinstance(target, Sight):
             x, y = float(target.center_xyz[0]), float(target.center_xyz[1])
             bottom = float(target.top_z) + self.cfg.drop_gap_m if bottom_z is None else float(bottom_z)

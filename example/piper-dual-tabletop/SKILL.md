@@ -155,13 +155,15 @@ closes, straight back up. `z`: TCP height of the grasp (default `grasp_xyz`). `y
 so leave it out unless you need that line). `width_m`: how far to open before coming down (default
 the object's width + 3 cm, up to 10 cm). Reasons:
 - `empty`: the fingers closed on nothing. The object may have been pushed away: look before trying
-  again.
+  again. A thin stem pinched flat reads the same: if in doubt, `show("wrist")`, and if you see something
+  hanging from the gripper, `place(box)` all the same.
 - `height_unknown`: no depth under it. Give `z`; for a flat piece `z=TCP_FLOOR_Z`.
 - `unreachable`, `too_wide`, `already_holding`.
 
 `place(target, bottom_z=None, yaw_deg=None) -> Place` (`ok`, `reason`, `detail`, `release_xyz`,
 `tilt_deg`, `yaw_deg`) — puts the held object down: moves above, straight down, opens a little,
-straight back up. Reasons: `not_holding`, `unreachable` (it stays held).
+straight back up. It does not ask whether the fingers hold anything. Reason: `unreachable` (it stays
+held).
 - `target`: `[x, y]` (its bottom ends 1 cm above the table), or a container's Sight (over its centre,
   its bottom 3 cm above `top_z`; the gripper stays above the rim).
 - `bottom_z`: the height of the object's bottom when let go, instead of those. Over a container keep
@@ -192,12 +194,15 @@ senses contact: keep the line clear of other objects.
   fruit. Left out, the same line was straight down with a 15 degree turn.
 - Two objects can be one: a grasp of one cherry lifted the other on the same stem too (3 times out of
   4, `width_m` 2.6 to 2.7 cm), and a `pick` of the second at its old position closed on nothing. Before
-  each next `pick`, `home()` and `locate` again. A small object's `center_xyz` is the middle of all it
-  found: once the cherry was found with its stem (`size` 5.8 x 2.2 cm, not 2.4 cm), the fingers closed
-  on the stem at 4 mm and it stayed behind. After a `pick`, compare `width_m` with the object.
+  each next `pick`, `home()` and `locate` again. A long thin find, such as a cherry with its stem (`size`
+  5.8 x 2.2 cm, not 2.4 cm), is closed on where most of its points are, not at `center_xyz`. After a
+  `pick`, compare `width_m` with the object.
 - If `locate` no longer finds an object that should not have moved, `pick` its earlier Sight: `pick`
   says `empty` if it has gone. That worked for a strawberry. Do not move the arm around to look: after
   `home()` it is out of the head camera's way.
+- Two small round things side by side can be found as one, and closing across both squeezes them out.
+  If `size` is much larger than one of them, open less (`width_m` about 3.5 cm for a cherry). Aim at
+  one, not at the middle.
 - Two words can find the same objects: `locate("cherry")` and `locate("strawberry")` returned the same
   red spots. Compare positions and look at the image, or you will go to one object twice.
 
@@ -268,6 +273,9 @@ is steady (score 0.95 and up). Open flaps belong to it: they raise its `top_z`, 
 little further, and its centre was about 1 cm from the middle of the opening. Do not use
 `locate("empty space inside the box")`: on one box its `top_z` jumped between 0.06, 0.13 and 0.17 m, and
 with the arm in view its centre moved 3 cm. `too_wide` in a container's `note` means nothing.
+
+Act only on what you are sure of. If you cannot find an object, `home()` and look again, and watch for
+whether it has already gone into the box.
 
 **Reference code.**
 
