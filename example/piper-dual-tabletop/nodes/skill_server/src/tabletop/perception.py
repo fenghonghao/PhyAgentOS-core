@@ -156,6 +156,11 @@ class DoraPerception(Perception):
             live = [n for n, s in self._slots.items() if s.rgb is not None]
         return sorted(live, key=lambda n: (n != self.head, n))
 
+    def latest_rgb(self, camera: str) -> np.ndarray | None:
+        """The newest colour image as it is, without waiting for a new frame (debug snapshots)."""
+        with self._cond:
+            return self._slots[camera].rgb
+
     def capture(self, camera: str) -> Frame:
         c = self.cfg[camera]
         t_call = time.monotonic()
@@ -171,7 +176,7 @@ class DoraPerception(Perception):
         if depth is not None and depth.shape[:2] != rgb.shape[:2]:
             depth = None  # not aligned to color: do not mix pixel grids
         frame = Frame(camera=camera, K=np.asarray(c.K, dtype=float), T_wc=T, rgb=rgb, depth=depth,
-                      meta={"stale": stale, "depth_age_s": depth_age, "t": t_rgb})
+                      meta={"stale": stale, "age_s": max(0.0, t_call - t_rgb), "depth_age_s": depth_age, "t": t_rgb})
         return reduced(frame, c.find_window) if c.find_window else frame
 
     def segment(self, frame: Frame, text: str) -> list[Detection]:

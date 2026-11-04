@@ -15,11 +15,14 @@ python3 - "$SKILL_ROOT" "$STAGE" <<'PY'
 import fnmatch, hashlib, json, shutil, sys
 from pathlib import Path
 src, stage = Path(sys.argv[1]), Path(sys.argv[2])
-skip_dirs = {".venv", "__pycache__", ".pytest_cache", "out", "dev", ".git"}
-skip_files = ["dataflow.local.yaml", "*.local.yaml", "*.pyc", "archive-manifest.json", ".gitignore"]
+skip_dirs = {".venv", "__pycache__", ".pytest_cache", "out", "dev", ".git", "memory-evidence-2026-11-04"}
+skip_files = ["dataflow.local.yaml", "*.local.yaml", "*.pyc", "archive-manifest.json", ".gitignore", "MEMORY.md"]
 files = []
-for p in sorted(src.rglob("*")):
-    rel = p.relative_to(src)
+# The live view page is kept in the repo's scripts/live_view; the bundle carries it as nodes/live_view.
+live = src.parents[1] / "scripts" / "live_view"
+sources = [(p, p.relative_to(src)) for p in sorted(src.rglob("*"))]
+sources += [(p, Path("nodes/live_view") / p.relative_to(live)) for p in sorted(live.rglob("*"))]
+for p, rel in sources:
     if any(part in skip_dirs for part in rel.parts) or not p.is_file():
         continue
     if any(fnmatch.fnmatch(p.name, pat) for pat in skip_files):

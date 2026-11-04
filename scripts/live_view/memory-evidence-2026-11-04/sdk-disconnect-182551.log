@@ -1,0 +1,31 @@
+[11/04 18:25:49.729556][info][181005][VideoSensor.cpp:153] [AY6Z36300RB] Depth backend frame callback, frameRate=29.940119fps
+[11/04 18:25:49.730234][info][181014][SensorBase.cpp:379] [AY6Z36300RB] Depth Streaming... frameRate=29.934143fps
+[11/04 18:25:49.922840][info][181004][VideoSensor.cpp:153] [AY6Z36300RB] Color backend frame callback, frameRate=14.970059fps
+[11/04 18:25:50.064891][info][181033][SensorBase.cpp:379] [AY6Z36300RB] Color Streaming... frameRate=14.970059fps
+[11/04 18:25:51.623149][info][186855][DeviceManager.cpp:332] Device changed! removed: 1, added: 0
+[11/04 18:25:51.623164][warning][186855][DeviceBase.cpp:207] Device is deactivated or disconnected while there are still sensors streaming!
+[11/04 18:25:51.623250][info][186855][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[11/04 18:25:51.623251][info][186855][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[11/04 18:25:51.623282][info][186855][DeviceManager.cpp:25] Removed device(s) list: (1)
+[11/04 18:25:51.623283][info][186855][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: AY6Z36300RB, Connection: USB3.0
+[11/04 18:25:51.623284][info][186855][DeviceManager.cpp:25] Current device(s) list: (1)
+[11/04 18:25:51.623285][info][186855][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: AY6Z363005R, Connection: USB3.0
+[11/04 18:25:51.296651][info][181113][VideoSensor.cpp:153] [AY6Z363005R] Depth backend frame callback, frameRate=29.940119fps
+[11/04 18:25:51.297251][info][181114][SensorBase.cpp:379] [AY6Z363005R] Depth Streaming... frameRate=29.940119fps
+[11/04 18:25:51.341439][info][181112][VideoSensor.cpp:153] [AY6Z363005R] Color backend frame callback, frameRate=29.940119fps
+[11/04 18:25:51.377706][info][181117][SensorBase.cpp:379] [AY6Z363005R] Color Streaming... frameRate=29.934143fps
+[11/04 18:25:51.622979][info][186854][DeviceManager.cpp:332] Device changed! removed: 1, added: 0
+[11/04 18:25:51.623024][info][186854][DeviceManager.cpp:25] Removed device(s) list: (1)
+[11/04 18:25:51.623028][info][186854][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: AY6Z36300RB, Connection: USB3.0
+[11/04 18:25:51.623030][info][186854][DeviceManager.cpp:25] Current device(s) list: (1)
+[11/04 18:25:51.623030][info][186854][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: AY6Z363005R, Connection: USB3.0
+[11/04 18:25:53.625120][warning][180904][Pipeline.cpp:335] [AY6Z36300RB] Wait for frame timeout, you can try to increase the wait time! current timeout=2000
+[11/04 18:25:54.634890][info][186964][DeviceManager.cpp:332] Device changed! removed: 0, added: 1
+[11/04 18:25:54.634900][info][186964][DeviceManager.cpp:25] Current device(s) list: (2)
+[11/04 18:25:54.634902][info][186964][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: AY6Z363005R, Connection: USB3.0
+[11/04 18:25:54.634902][info][186964][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: AY6Z36300RB, Connection: USB3.0
+[11/04 18:25:54.632649][info][186963][DeviceManager.cpp:332] Device changed! removed: 0, added: 1
+[11/04 18:25:54.632686][info][186963][DeviceManager.cpp:25] Current device(s) list: (2)
+[11/04 18:25:54.632693][info][186963][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: AY6Z363005R, Connection: USB3.0
+[11/04 18:25:54.632695][info][186963][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: AY6Z36300RB, Connection: USB3.0
+[11/04 18:25:57.625411][warning][180904][Pipeline.cpp:335] [AY6Z36300RB] Wait for frame timeout, you can try to increase the wait time! current timeout=2000 [**2 logs in 4000ms**]

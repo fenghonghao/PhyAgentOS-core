@@ -18,7 +18,8 @@ is historical; the code still supports two arms (profiles kept in `dev/legacy/`)
 | `profiles/sim-piper/` | Single-arm MuJoCo profile to check the whole chain without hardware |
 | `nodes/skill_server/` | `tabletop` package: primitives, skills, executor, Dora node, IK, perception (SAM3), vision model client, tests |
 | `nodes/run_skill_server.sh`, `nodes/run_camera.sh` | Node launchers (venv / camera release binaries) |
-| `start.sh` | Builds the node venv outside the bundle, installs pinned deps, pre-flight checks |
+| `nodes/run_live_view.sh` | Starts the read-only live view page, http://127.0.0.1:8780 (`make_bundle.sh` copies the repo's `scripts/live_view` to `nodes/live_view`). Stays up after `paos skill stop`; the next start replaces it |
+| `start.sh` | Builds the node venv outside the bundle, installs pinned deps, pre-flight checks, starts the live view on real profiles |
 | `run_scene.sh` | Competition entry: one scene per call, writes the 180 s deadline, logs start/end |
 | `scripts/` | `make_bundle.sh`, `fetch_camera_nodes.sh`, `calib_compose.py`, `calibrate/` (camera calibration tool and printable board) |
 

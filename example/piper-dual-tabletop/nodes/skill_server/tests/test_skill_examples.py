@@ -81,6 +81,49 @@ def test_playbook_a_moves_the_chosen_fruit_into_the_box(tmp_path):
     assert "box moved by 0.0" in out["output"] and len(out["images"]) == 1
 
 
+def test_playbook_a_puts_things_in_the_whole_box_not_in_a_word_for_its_inside():
+    """On the real box that word's top_z jumped between 0.06, 0.13 and 0.17 m."""
+    code = "".join(blocks("A"))
+    assert "empty space" not in code and "place(box)" in code
+
+
+def box_and_two_fruits():
+    return [
+        Box("cardboard box", [0.36, -0.16], 0.0, [0.14, 0.12, 0.06], aliases=["empty space inside the box"]),
+        fruit("peach", [0.30, 0.12]), fruit("apple", [0.45, -0.02]),
+    ]
+
+
+def test_playbook_a_moves_two_targets_into_the_box(tmp_path):
+    world, ex = setup(box_and_two_fruits(), tmp_path)
+    see, act, _check = blocks("A")
+    run(ex, see)
+    numbers = [i for i, s in enumerate(ex.ns["objects"], 1)]
+    out = run(ex, decided(act, "TARGETS", numbers))
+    box = world.boxes["cardboard box"]
+    for name in ("peach", "apple"):
+        assert box.contains_xy(world.boxes[name].center), (name, out["output"])
+
+
+def test_playbook_a_does_not_grasp_at_a_target_that_went_with_the_first(tmp_path):
+    """Two cherries on one stem: the first pick took both, and the second closed on nothing."""
+    world, ex = setup(box_and_two_fruits(), tmp_path)
+    see, act, _check = blocks("A")
+    run(ex, see)
+    place = ex.ns["place"]
+
+    def place_and_lose_the_apple(*args, **kw):
+        out = place(*args, **kw)
+        world.boxes.pop("apple", None)
+        return out
+
+    ex.ns["place"] = place_and_lose_the_apple
+    numbers = [i for i, s in enumerate(ex.ns["objects"], 1)]
+    numbers.sort(key=lambda i: nearest(world, ex.ns["objects"][i - 1]).name != "peach")   # the peach first
+    out = run(ex, decided(act, "TARGETS", numbers))["output"]
+    assert not any("closed on nothing" in line for line in world.log), out
+
+
 def test_playbook_b_sorts_strays_into_their_groups(tmp_path):
     boxes = [
         flat_block("b1", [0.28, 0.16]), flat_block("b2", [0.34, 0.18]), flat_block("b3", [0.31, 0.10]),

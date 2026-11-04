@@ -1,0 +1,5 @@
+load extensions from /home/bsb/.PhyAgentOS/skills/.venvs/piper-dual-tabletop-skill-server/lib/python3.12/site-packages/pyorbbecsdk/extensions
+aggregate_modes {'FULL_FRAME_REQUIRE': <OBFrameAggregateOutputMode.FULL_FRAME_REQUIRE: 0>, 'COLOR_FRAME_REQUIRE': <OBFrameAggregateOutputMode.COLOR_FRAME_REQUIRE: 1>, 'ANY_SITUATION': <OBFrameAggregateOutputMode.ANY_SITUATION: 2>, 'DISABLE': <OBFrameAggregateOutputMode.DISABLE: 3>}
+{"elapsed": 5.0, "framesets": 0, "color": 0, "depth": 0, "aligned": 0, "timeouts": 5}
+RESULT {"mode": "full", "ae": "keep", "elapsed": 5.0, "framesets": 0, "color": 0, "depth": 0, "aligned": 0, "timeouts": 5}
+PIPELINE_STOPPED

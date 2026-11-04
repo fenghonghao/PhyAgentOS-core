@@ -2,9 +2,12 @@ import threading
 import time
 
 import numpy as np
+import pytest
 
 from tabletop.perception import CameraConfig, ColorSegmenter, DoraPerception, label_components, rgb_to_hsv
+from tabletop.fake import Box, FakeWorld
 from tabletop.primitives import Robot, RobotConfig
+from tabletop.types import RobotFault
 from tests.conftest import make_scene
 
 COLORS = {"red block": (220, 30, 30), "blue block": (30, 60, 220), "green block": (40, 200, 60),
@@ -103,3 +106,37 @@ def test_wrist_frame_before_first_joint_state_does_not_block_the_dora_loop():
     backend.on_joint_state([f"joint{i}" for i in range(1, 7)] + ["gripper"], [0.0] * 7)
     per.on_color("wrist", rgb)
     assert "wrist" in per.cameras()
+
+
+class _QuietWorld(FakeWorld):
+    """A camera whose newest image is ``age`` seconds old."""
+
+    age = 10.0
+
+    def capture(self, camera):
+        frame = super().capture(camera)
+        frame.meta["age_s"] = self.age
+        return frame
+
+
+@pytest.mark.parametrize("use", [lambda r: r.locate("red block"), lambda r: r.capture("head"), lambda r: r.show("head")])
+def test_a_camera_that_stopped_is_reported_and_its_old_image_is_not_served(tmp_path, use):
+    w = _QuietWorld([Box("red block", [0.30, 0.10], 0.0, [0.04, 0.04, 0.04])])
+    r = Robot(w, w, RobotConfig())
+    r.show_dir = tmp_path
+    with pytest.raises(RobotFault, match="no new image"):
+        use(r)
+
+
+def test_a_camera_a_moment_behind_is_still_served(tmp_path):
+    w = _QuietWorld([Box("red block", [0.30, 0.10], 0.0, [0.04, 0.04, 0.04])])
+    w.age = 1.5                                                     # segmentation can hold up a frame this long
+    assert Robot(w, w, RobotConfig()).capture("head").rgb is not None
+
+
+def test_capture_says_how_old_its_image_is():
+    cam = CameraConfig(name="head", K=np.eye(3), mount="fixed", stale_after_s=0.0)
+    p = DoraPerception([cam], ColorSegmenter(min_area_px=20))
+    p.on_color("head", np.zeros((4, 4, 3), np.uint8))
+    time.sleep(0.05)
+    assert p.capture("head").meta["age_s"] >= 0.05

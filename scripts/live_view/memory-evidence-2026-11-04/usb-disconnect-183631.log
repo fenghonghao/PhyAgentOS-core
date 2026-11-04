@@ -1,0 +1,18 @@
+Nov 04 18:36:20 bsb-ThinkBook-16-G7-IAH kernel: usb 2-1.4: reset SuperSpeed USB device number 4 using xhci_hcd
+Nov 04 18:36:27 bsb-ThinkBook-16-G7-IAH kernel: usb 2-1.1: usbfs: process 201426 (python) did not claim interface 5 before use
+Nov 04 18:36:27 bsb-ThinkBook-16-G7-IAH kernel: uvcvideo 2-1.1:1.4: Found UVC 1.10 device Orbbec(R) Gemini(TM) (2bc5:0670)
+Nov 04 18:36:27 bsb-ThinkBook-16-G7-IAH kernel: uvcvideo 2-1.1:1.4: No streaming interface found for terminal 32778.
+Nov 04 18:36:27 bsb-ThinkBook-16-G7-IAH kernel: uvcvideo 2-1.1:1.1: Unknown video format 20343159-0000-0010-8000-00aa00389b71
+Nov 04 18:36:27 bsb-ThinkBook-16-G7-IAH kernel: uvcvideo 2-1.1:1.0: Found UVC 1.10 device Orbbec(R) Gemini(TM) (2bc5:0670)
+Nov 04 18:36:31 bsb-ThinkBook-16-G7-IAH kernel: usb 2-1.1: USB disconnect, device number 7
+Nov 04 18:36:33 bsb-ThinkBook-16-G7-IAH kernel: usb 2-1.1: new SuperSpeed USB device number 8 using xhci_hcd
+Nov 04 18:36:33 bsb-ThinkBook-16-G7-IAH kernel: usb 2-1.1: New USB device found, idVendor=2bc5, idProduct=0670, bcdDevice= 0.01
+Nov 04 18:36:33 bsb-ThinkBook-16-G7-IAH kernel: usb 2-1.1: New USB device strings: Mfr=1, Product=2, SerialNumber=10
+Nov 04 18:36:33 bsb-ThinkBook-16-G7-IAH kernel: usb 2-1.1: Product: Orbbec(R) Gemini(TM)
+Nov 04 18:36:33 bsb-ThinkBook-16-G7-IAH kernel: usb 2-1.1: Manufacturer: Orbbec(R)
+Nov 04 18:36:33 bsb-ThinkBook-16-G7-IAH kernel: usb 2-1.1: SerialNumber: AY6Z36300RB
+Nov 04 18:36:33 bsb-ThinkBook-16-G7-IAH kernel: uvcvideo 2-1.1:1.1: Unknown video format 20343159-0000-0010-8000-00aa00389b71
+Nov 04 18:36:33 bsb-ThinkBook-16-G7-IAH kernel: uvcvideo 2-1.1:1.0: Found UVC 1.10 device Orbbec(R) Gemini(TM) (2bc5:0670)
+Nov 04 18:36:33 bsb-ThinkBook-16-G7-IAH kernel: uvcvideo 2-1.1:1.2: Found UVC 1.10 device Orbbec(R) Gemini(TM) (2bc5:0670)
+Nov 04 18:36:33 bsb-ThinkBook-16-G7-IAH kernel: uvcvideo 2-1.1:1.4: Found UVC 1.10 device Orbbec(R) Gemini(TM) (2bc5:0670)
+Nov 04 18:36:33 bsb-ThinkBook-16-G7-IAH kernel: hid-generic 0003:2BC5:0670.000C: hiddev0,hidraw1: USB HID v1.11 Device [Orbbec(R) Orbbec(R) Gemini(TM)] on usb-0000:00:0d.0-1.1/input7

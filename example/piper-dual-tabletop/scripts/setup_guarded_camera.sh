@@ -10,3 +10,4 @@ curl --fail --location --output "$ARCHIVE" https://codeload.github.com/PhyAgentO
 printf '%s  %s\n' f7fe4ffcce336d4a39ab22d2146ebe5a9bfd22a02ae5374efa862262a9e4e1b9 "$ARCHIVE" | sha256sum --check
 uv pip install --python "$PYTHON" --target "$ROOT/orbbec-camera-1.1.0-shmfix" --no-deps \
   "$ARCHIVE" forge-common==1.0.1 forge-msgs==1.1.0 opencv-python-headless==4.11.0.86
+"$PYTHON" "$HERE/scripts/patch_orbbec_shutdown.py" "$ROOT/orbbec-camera-1.1.0-shmfix"

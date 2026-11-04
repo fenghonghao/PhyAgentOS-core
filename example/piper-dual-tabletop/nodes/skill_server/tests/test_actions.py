@@ -3,6 +3,8 @@
 import dataclasses
 import math
 import threading
+import time
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -498,3 +500,47 @@ def test_the_ledger_shows_the_pick_and_its_steps(robot):
     entries = robot.ledger.drain()
     assert [e["call"] for e in entries if not e["nested"]] == ["pick"]
     assert {"set_gripper", "motion"} <= {e["call"] for e in entries if e["nested"]}
+
+
+class _Cameras:
+    """Just what the snapshots use; a camera without a frame yet is skipped."""
+
+    def __init__(self):
+        self.frames = {"head": np.full((48, 64, 3), 200, np.uint8), "wrist": None}
+
+    def cameras(self):
+        return list(self.frames)
+
+    def latest_rgb(self, camera):
+        return self.frames[camera]
+
+
+def _wait_for(paths, timeout=5.0):
+    deadline = time.monotonic() + timeout
+    while not all(p.exists() and p.stat().st_size for p in paths):
+        assert time.monotonic() < deadline, "snapshot not written"
+        time.sleep(0.01)
+
+
+def test_grip_snapshots_are_logged_and_never_reach_the_model(robot, tmp_path):
+    robot.perception = _Cameras()
+    robot.grip_snapshot_dir = tmp_path / "grip"
+    robot.ledger.drain()
+    robot.take_shown()
+
+    grip = robot.set_gripper(0.05)
+
+    entry = robot.ledger.drain()[-1]
+    paths = [Path(p) for p in entry["args"]["before_images"]]
+    assert [p.name.split("_")[-1] for p in paths] == ["head.jpg"]
+    assert "w050mm" in paths[0].name
+    _wait_for(paths)
+    assert robot.take_shown() == []           # what the model is handed after a block
+    assert "before_images" not in str(grip)   # what its code gets back
+
+
+def test_no_grip_snapshots_unless_configured(robot):
+    robot.perception = _Cameras()
+    robot.ledger.drain()
+    robot.set_gripper(0.05)
+    assert "before_images" not in robot.ledger.drain()[-1]["args"]

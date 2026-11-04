@@ -142,7 +142,7 @@ nodes:
   - image/color
   - image/depth
   - _shm_reclaim
-# Read-only live view (scripts/live_view): a dynamic node that only receives the camera frames; it starts
+# Read-only live view (nodes/run_live_view.sh starts it from start.sh): a dynamic node that only receives the camera frames; it starts
 # nothing and sends nothing. Nobody has to attach it: an unattached dynamic node blocks neither start nor stop.
 - id: live_view
   path: dynamic

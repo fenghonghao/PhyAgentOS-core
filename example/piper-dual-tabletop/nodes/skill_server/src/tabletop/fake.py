@@ -95,7 +95,7 @@ class FakeWorld(ArmBackend, Perception):
                  topdown_max_z: float | None = 0.14, arms: tuple[str, ...] = ("left",)) -> None:
         self.table_z = table_z
         self.boxes: dict[str, Box] = {b.name: b for b in (boxes or [])}
-        self.a = FakeArm("left", [0.0, 0.0, 0.0], [0.15, 0.0, 0.25], width=max_opening_m)  # at the origin, like the booth
+        self.a = FakeArm("left", [0.0, 0.0, 0.0], [0.22, 0.0, 0.13], width=max_opening_m)  # at the origin, like the booth
         self.arm = {"left": self.a}
         self.reach_m = reach_m
         # PIPER joint5 (+-70 deg) limits a vertical approach to low heights (URDF sampling: ~0.14 m)

@@ -295,3 +295,99 @@ def test_a_drag_the_wrist_cannot_follow_is_refused_before_anything_moves(robot, 
     d = robot.drag(s, [0.30, 0.30], yaw_deg=0.0)
     assert not d.ok and d.reason == "unreachable"
     assert stack.history == [] and stack.width == width
+
+
+# ---------------------------------------------------------------- crossing between two heights
+# Scene simple-cherry-strawberry-2, 2026-11-04: a pick right after a place was one joint move from above
+# the box to a low hover, and it swept the gripper through the box and turned it over.
+
+BOX_CENTRE = np.array([0.3428, 0.445])
+BOX_SIZE = (0.2365, 0.1375)
+BOX_AXIS_DEG = -23.25
+BOX_TOP = 0.173
+OPENING = dict(top=0.1706, width=0.13, text="box opening")
+
+
+def over_the_box(xy) -> bool:
+    a = math.radians(BOX_AXIS_DEG)
+    u, v = np.array([math.cos(a), math.sin(a)]), np.array([-math.sin(a), math.cos(a)])
+    d = np.asarray(xy) - BOX_CENTRE
+    return abs(d @ u) <= BOX_SIZE[0] / 2 and abs(d @ v) <= BOX_SIZE[1] / 2
+
+
+def gripper_points(b, flange, q):
+    """The gripper as a box of points, from the flange to the fingertips."""
+    T = b._fk_world(q)
+    R = T[:3, :3]
+    tips = T[:3, 3] + R[:, 2] * 0.0125
+    base = (b.T_world_base @ flange.fk(q))[:3, 3]
+    for along in np.linspace(0.0, 1.0, 7):
+        middle = base + (tips - base) * along
+        for across in (-0.05, 0.0, 0.05):
+            for side in (-0.04, 0.0, 0.04):
+                yield middle + R[:, 1] * across + R[:, 0] * side
+
+
+def lowest_over_the_box(b, joints) -> float:
+    flange = kin.Chain(URDF, b.c.reference_frame, "link6")
+    low = math.inf
+    for q0, q1 in zip(joints, joints[1:]):
+        for f in np.linspace(0.0, 1.0, 21):
+            q = np.asarray(q0) + (np.asarray(q1) - np.asarray(q0)) * f
+            for p in gripper_points(b, flange, q):
+                if over_the_box(p[:2]):
+                    low = min(low, float(p[2]))
+    return low
+
+
+def carried_into_the_box(robot, stack):
+    stack.object_width = 0.027
+    s = sight(0.4434, 0.0938, top=0.015, width=0.027, yaw=199.05, grasp_below=0.0)
+    assert robot.pick(s, yaw_deg=199.05, width_m=0.042).ok
+    assert robot.place(sight(0.333, 0.4504, **OPENING)).ok
+    stack.history.clear()
+    stack.object_width = 0.0
+    return list(stack.q)
+
+
+@pytest.mark.parametrize("x,y,yaw", [(0.4337, 0.1216, -1.28), (0.25, 0.20, 90.0), (0.25, -0.20, 45.0)])
+def test_a_pick_right_after_a_place_does_not_sweep_through_the_box(robot, stack, x, y, yaw):
+    start = carried_into_the_box(robot, stack)
+    r = robot.pick(sight(x, y, top=0.015, width=0.027, yaw=yaw, grasp_below=0.0), yaw_deg=yaw, width_m=0.042)
+    assert r.reason == "empty", r
+    assert lowest_over_the_box(robot.arms_backend, [start, *[q for q, _ in stack.history]]) >= BOX_TOP
+
+
+def test_a_drag_right_after_a_place_does_not_sweep_through_the_box(robot, stack):
+    start = carried_into_the_box(robot, stack)
+    stack.object_width = 0.03
+    d = robot.drag(sight(0.30, 0.0, top=0.01, width=0.03, yaw=90.0, grasp_below=0.005), [0.35, -0.05])
+    assert d.ok, d
+    assert lowest_over_the_box(robot.arms_backend, [start, *[q for q, _ in stack.history]]) >= BOX_TOP
+
+
+def test_a_big_drop_crosses_at_the_start_height_then_comes_down_above_the_hover(robot, stack, b):
+    b.execute(b.plan([0.30, 0.25, 0.25], 90.0, 45.0, "joint"))
+    stack.history.clear()
+    stack.object_width = 0.03
+    assert robot.pick(sight(0.35, -0.15, top=0.01, width=0.03, yaw=60.0, grasp_below=0.005)).ok
+    first = b._fk_world(np.asarray(stack.history[0][0]))[:3, 3]
+    assert first[2] == pytest.approx(0.25, abs=1e-3)
+    assert first[:2] == pytest.approx([0.35, -0.15], abs=0.05)                  # above the hover, not on the way
+
+
+def test_a_pick_from_home_goes_straight_to_a_hover_a_little_lower(robot, stack, b):
+    stack.object_width = 0.03
+    assert robot.pick(sight(0.30, 0.0, top=0.01, width=0.03, yaw=90.0, grasp_below=0.005)).ok
+    first = b._fk_world(np.asarray(stack.history[0][0]))[:3, 3]
+    assert first == pytest.approx([0.30, 0.0, FLOOR + 0.08], abs=2e-3)          # no extra leg: this costs time
+
+
+def test_a_pick_of_something_tall_from_low_rises_on_the_spot_first(robot, stack, b):
+    b.execute(b.plan([0.30, 0.0, 0.05], 90.0, 0.0, "joint"))
+    stack.history.clear()
+    stack.object_width = 0.05
+    assert robot.pick(sight(0.35, 0.20, top=0.20, width=0.05, yaw=90.0)).ok
+    first = b._fk_world(np.asarray(stack.history[0][0]))[:3, 3]
+    assert first[:2] == pytest.approx([0.30, 0.0], abs=2e-3)
+    assert first[2] > 0.15

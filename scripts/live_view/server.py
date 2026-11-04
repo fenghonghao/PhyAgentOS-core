@@ -26,12 +26,12 @@ Dataflow entry for the dora source (both packages name their camera nodes cam_he
         wrist_depth: {source: cam_wrist/image/depth, queue_size: 1}
 
 Inputs are named <camera>_color (forge_msgs Image rgb8 / bgr8) and <camera>_depth (Image 32FC1, metres).
-Start the skill first, then (the piper-vla venv has dora-rs, forge_msgs, opencv, aiohttp, pyorbbecsdk):
+`paos skill start` of piper-dual-tabletop starts this page (the bundle carries this directory as
+nodes/live_view, see nodes/run_live_view.sh), so open http://127.0.0.1:8780. By hand, from the repo (the
+piper-vla venv has dora-rs, forge_msgs, opencv, aiohttp, pyorbbecsdk):
 
     ~/.PhyAgentOS/skills/.venvs/piper-vla/bin/python scripts/live_view/server.py
     # directly on the cameras, skill stopped:  ... server.py --source usb
-
-and open http://127.0.0.1:8780
 """
 import argparse
 import asyncio
@@ -51,14 +51,18 @@ from urllib.parse import urlparse
 
 import cv2
 import numpy as np
-from aiohttp import web
+from aiohttp import WSCloseCode, web
 
-HERE = Path(__file__).resolve().parent
-ROBOT_DIR = HERE.parents[1] / "example" / "piper-dual-tabletop" / "assets" / "robots" / "piper"
+HERE =Path(__file__).resolve().parent
+# This file is <skill>/nodes/live_view/server.py when installed, scripts/live_view/server.py in the repo.
+SKILL_ROOT = HERE.parents[1] if (HERE.parents[1] / "skill.yaml").is_file() else HERE.parents[1] / "example" / "piper-dual-tabletop"
+ROBOT_DIR = SKILL_ROOT / "assets" / "robots" / "piper"
 URDF = ROBOT_DIR / "piper_with_gripper_real.urdf"
 MESH_DIR = ROBOT_DIR / "mjcf" / "assets"
 SKILL_LOG_DIR = Path.home() / ".PhyAgentOS" / "logs" / "piper-dual-tabletop"  # written by the skill, only read here
-LEDGER_TAIL = 40  # robot.run records sent when the page opens
+LEDGER_TAIL = 300  # robot.run records sent when the page opens
+SESSION_DIR = Path.home() / ".PhyAgentOS" / "workspace" / "sessions"  # PAOS conversations, only read here
+SCENE_TAIL = 8  # most recent scene conversations shown
 
 CAMERAS = {"head": "AY6Z36300RB", "wrist": "AY6Z363005R"}
 COLOR_MODE = (640, 480, 30)
@@ -495,6 +499,132 @@ async def ledger(request: web.Request) -> web.Response:
     return web.Response(body=b'{"offset":%d,"runs":[%s]}' % (start + end, body), content_type="application/json")
 
 
+class LiveScene:
+    """Replies of the scene in progress, from the agent log run_scene.sh tees while PAOS runs.
+
+    PAOS writes the conversation file only when the scene ends; until then this log is the only record of
+    what the model says. The log has no times, so each reply is stamped when first seen. Replies already in
+    the log when it is first read are stamped with the scene's start. The CLI wraps lines at 80 columns."""
+
+    LOG_NAME = re.compile(r"^(\d{8}-\d{6})_(.+)_agent\.log$")
+
+    def __init__(self) -> None:
+        self.path: Path | None = None
+        self.offset = 0
+        self.replies: list[dict] = []
+        self.start = 0.0
+        self.scene = ""
+        self.stamp = ""
+
+    def poll(self) -> None:
+        logs = list((SKILL_LOG_DIR / "scenes").glob("*_agent.log"))
+        if not logs:
+            return
+        newest = max(logs, key=lambda p: p.stat().st_mtime)
+        match = self.LOG_NAME.match(newest.name)
+        if match is None:
+            return
+        first_read = newest != self.path
+        if first_read:
+            self.path, self.offset, self.replies = newest, 0, []
+            self.stamp, self.scene = match.groups()
+            self.start = time.mktime(time.strptime(self.stamp, "%Y%m%d-%H%M%S"))
+        with newest.open("rb") as fh:
+            fh.seek(self.offset)
+            data = fh.read()
+        end = data.rfind(b"\n") + 1
+        self.offset += end
+        now = self.start if first_read else time.time()
+        for line in data[:end].decode("utf-8", "replace").splitlines():
+            if line.startswith("  \u21b3 "):
+                self.replies.append({"t": now, "text": line[4:].strip()})
+            elif line.strip() and self.replies:
+                previous = self.replies[-1]["text"]
+                piece = line.strip()
+                gap = " " if previous[-1:].isascii() and piece[:1].isascii() else ""  # undo the wrapping
+                self.replies[-1]["text"] = previous + gap + piece
+
+    def snapshot(self) -> dict:
+        task, ended = "", False
+        meta = SKILL_LOG_DIR / "scenes" / f"{self.stamp}_{self.scene}.json"
+        if meta.is_file():
+            try:
+                data = json.loads(meta.read_text(encoding="utf-8"))
+                task, ended = data.get("task", ""), "end" in data
+            except ValueError:  # being rewritten: next poll
+                pass
+        saved = (SESSION_DIR / f"scene_{self.scene}_{self.stamp}.jsonl").is_file()
+        # An interrupted agent leaves neither an end time nor a conversation file.
+        alive = subprocess.run(["pgrep", "-f", f"paos agent .*scene:{self.scene}:{self.stamp}"],
+                               capture_output=True).returncode == 0
+        ended = ended or not alive
+        return {"scene": self.scene, "stamp": self.stamp, "start": self.start, "task": task, "ended": ended,
+                "saved": saved, "replies": [] if saved else self.replies}
+
+
+async def watch_live_scene(app: web.Application) -> None:
+    while True:
+        app["live_scene"].poll()
+        await asyncio.sleep(0.5)
+
+
+async def start_live_scene(app: web.Application) -> None:
+    app["live_scene_task"] = asyncio.create_task(watch_live_scene(app))
+
+
+async def stop_live_scene(app: web.Application) -> None:
+    app["live_scene_task"].cancel()
+
+
+async def live_scene(request: web.Request) -> web.Response:
+    return web.json_response(request.app["live_scene"].snapshot())
+
+
+def _message_text(content) -> str:
+    """Text of a stored message; image parts are stored as the placeholder "[image]" and left out."""
+    if isinstance(content, str):
+        return content
+    parts = [p.get("text", "") for p in content or [] if isinstance(p, dict)]
+    return "\n".join(t for t in parts if t != "[image]")
+
+
+def _load_scene(path: Path) -> dict:
+    """One PAOS scene conversation, reduced to what the page shows. PAOS writes the file when the scene ends."""
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    meta = rows[0] if rows and rows[0].get("_type") == "metadata" else {}
+    messages = []
+    for row in rows:
+        role = row.get("role")
+        if role is None:
+            continue
+        text = _message_text(row.get("content"))
+        message = {"role": role, "text": text[:3000] if role == "tool" else text}
+        if role == "assistant":
+            message["reasoning"] = (row.get("reasoning_content") or "")[:8000]
+            message["calls"] = [{"id": c.get("id"), "name": c.get("function", {}).get("name"),
+                                 "args": (c.get("function", {}).get("arguments") or "")[:4000]}
+                                for c in row.get("tool_calls") or []]
+        elif role == "tool":
+            found = re.search(r'"invocation_id":\s*"([^"]+)"', text)
+            message.update(call_id=row.get("tool_call_id"), name=row.get("name"), invocation=found and found.group(1))
+        messages.append(message)
+    return {"name": path.name, "key": meta.get("key"), "created_at": meta.get("created_at"), "messages": messages}
+
+
+async def scenes(request: web.Request) -> web.Response:
+    """The most recent scene conversations: names and modification times, so the page fetches only changes."""
+    files = sorted(SESSION_DIR.glob("scene_*.jsonl"), key=lambda p: p.stat().st_mtime)[-SCENE_TAIL:]
+    return web.json_response([{"name": p.name, "mtime": p.stat().st_mtime} for p in files])
+
+
+async def scene(request: web.Request) -> web.Response:
+    name = request.query.get("name", "")
+    path = SESSION_DIR / name
+    if Path(name).name != name or not name.startswith("scene_") or not name.endswith(".jsonl") or not path.is_file():
+        raise web.HTTPNotFound()
+    return web.json_response(_load_scene(path))
+
+
 async def shot(request: web.Request) -> web.FileResponse:
     """An image the skill saved for a show() call; nothing outside the skill's log folder is served."""
     path = Path(request.query.get("path", "")).resolve()
@@ -527,7 +657,7 @@ async def same_origin_only(request: web.Request, handler):
 
 async def close_websockets(app: web.Application) -> None:
     for ws in set(app["websockets"]):
-        await ws.close(code=web.WSCloseCode.GOING_AWAY, message=b"server shutdown")
+        await ws.close(code=WSCloseCode.GOING_AWAY, message=b"server shutdown")
 
 
 async def start_feed(app: web.Application) -> None:
@@ -573,6 +703,9 @@ def make_app(args: argparse.Namespace) -> web.Application:
             app["cameras"][name] = camera
         app["_orbbec_context"] = context  # keep the SDK context alive for the lifetime of the app
     app.on_cleanup.append(stop_sources)
+    app["live_scene"] = LiveScene()
+    app.on_startup.append(start_live_scene)
+    app.on_cleanup.append(stop_live_scene)
     app["arm"] = ArmListener(args.can)
     app["arm"].start()
 
@@ -584,6 +717,9 @@ def make_app(args: argparse.Namespace) -> web.Application:
     app.router.add_get("/api/colorbar.png", colorbar)
     app.router.add_get("/api/ledger", ledger)
     app.router.add_get("/api/shot", shot)
+    app.router.add_get("/api/scenes", scenes)
+    app.router.add_get("/api/scene", scene)
+    app.router.add_get("/api/live_scene", live_scene)
     app.router.add_get("/robot/piper.urdf", lambda r: web.FileResponse(URDF))
     app.router.add_get("/robot/mesh/{name}.stl", mesh)
     app.router.add_static("/vendor/", HERE / "vendor")

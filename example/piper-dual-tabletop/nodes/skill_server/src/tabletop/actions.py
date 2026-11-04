@@ -8,17 +8,27 @@ as they were. Domain outcomes are return values; hardware faults raise ``RobotFa
 from __future__ import annotations
 
 import math
+import threading
+import time
+from pathlib import Path
 from typing import Any, Callable
 
 import numpy as np
 
 from . import kinematics as kin
+from . import vision as vis
 from .backend import MotionOutcome, Plan, Unreachable
 from .types import ArmState, Cancelled, Drag, Grip, Move, Pick, Place, RobotFault, Sight
 
 PATHS = ("auto", "line", "joint")
 RISE_FIRST_M = 0.02        # a move that ends this much higher rises on the spot first, to clear what is near
+DROP_LAST_M = 0.05         # a move that ends this much lower crosses at the start's height and comes down last
 KEEP_YAW_DEG = 95.0        # a closing line this far from the tangent can stay (joint 6 stops at 100)
+
+
+def _write_snapshot(path: Path, rgb: np.ndarray) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(vis.encode_jpeg(rgb))
 
 
 def _wrap(deg: float) -> float:
@@ -36,6 +46,8 @@ class ArmActions:
 
     _holding = False
     _above_bottom = 0.0        # TCP height above the held object's bottom, from when it was grasped
+    grip_snapshot_dir: Path | None = None  # debugging: frames saved before each gripper move; None = off
+    _grip_snapshots_taken = 0
 
     # ------------------------------------------------------------------ state, move_to, home
 
@@ -147,7 +159,29 @@ class ArmActions:
         """Move the fingers to an opening (m), 0 = closed. ``holding``: they stopped wider than
         asked, so something is between them. Which object it is, this does not say."""
         target = max(0.0, min(float(width_m), float(self.arms_backend.max_opening_m)))
-        return self._call("set_gripper", {"width_m": round(target, 4)}, lambda: self._grip(target))
+        args: dict[str, Any] = {"width_m": round(target, 4)}
+        snapshots = self._grip_snapshots(target)
+        if snapshots:
+            args["before_images"] = snapshots
+        return self._call("set_gripper", args, lambda: self._grip(target))
+
+    def _grip_snapshots(self, target: float) -> list[str]:
+        """For people debugging, not for the model: the cameras' newest frames just before the fingers
+        move. Only the ledger names the files. Encoding runs in the background, so the grip is not
+        delayed and a failed write cannot reach the motion."""
+        latest = getattr(self.perception, "latest_rgb", None)
+        if self.grip_snapshot_dir is None or latest is None:
+            return []
+        self._grip_snapshots_taken += 1
+        stem = f"{time.strftime('%H%M%S')}_{self._grip_snapshots_taken:04d}_w{round(target * 1000):03d}mm"
+        paths = []
+        for camera in self.perception.cameras():
+            rgb = latest(camera)
+            if rgb is not None:
+                path = self.grip_snapshot_dir / f"{stem}_{camera}.jpg"
+                threading.Thread(target=_write_snapshot, args=(path, rgb), daemon=True).start()
+                paths.append(str(path))
+        return paths
 
     def _grip(self, target: float) -> Grip:
         out = self.arms_backend.grip(target)
@@ -222,6 +256,20 @@ class ArmActions:
             if self._refusal(hover, yaw, hover_tilt, width) is None and self._reaches(hover, yaw, hover_tilt):
                 yield hover, hover_tilt
 
+    def _crossing(self, hover: np.ndarray, yaw: float, tilt: float, width: float) -> list[tuple]:
+        """The legs from where the arm is to ``hover``, crossing at the higher of the two heights: one
+        joint move between two heights sweeps down or up through whatever stands in between."""
+        cur, cur_yaw, _ = self.arms_backend.tcp_pose()
+        if hover[2] > cur[2] + RISE_FIRST_M:
+            return [([cur[0], cur[1], hover[2]], cur_yaw, tilt, "joint"), (hover, yaw, tilt, "joint")]
+        if hover[2] < cur[2] - DROP_LAST_M:
+            above = [hover[0], hover[1], cur[2]]
+            for above_tilt in map(float, self.cfg.approach_tilts_deg):  # up there it may have to lean more or less
+                if self._refusal(above, yaw, above_tilt, width) is None and self._reaches(above, yaw, above_tilt):
+                    return [(above, yaw, above_tilt, "joint"), (hover, yaw, tilt, "auto")]
+            raise Unreachable(f"no pose above the hover at the height it starts from, {cur[2]:.3f}: go lower first")
+        return [(hover, yaw, tilt, "joint")]
+
     def _find_route(self, x: float, y: float, z: float, yaws: list[float], width: float,
                     legs: Callable[..., list]) -> tuple:
         """The first complete route over (x, y, z). Returns (yaw, tilt at the stop, plans)."""
@@ -272,18 +320,18 @@ class ArmActions:
         width = self._open_width(s, width_m)
         x, y = float(s.center_xyz[0]), float(s.center_xyz[1])
         try:
-            yaw, tilt, (above, down, up) = self._find_route(
+            yaw, tilt, plans = self._find_route(
                 x, y, grasp_z, self._grasp_yaws(s, yaw_deg), width,
-                lambda p, h, yw, t, ht: [(h, yw, ht, "joint"), (p, yw, t, "line"), (h, yw, ht, "line")])
+                lambda p, h, yw, t, ht: [*self._crossing(h, yw, ht, width), (p, yw, t, "line"), (h, yw, ht, "line")])
         except Unreachable as exc:
             return Pick(ok=False, reason="unreachable", detail=str(exc))
         self.set_gripper(width)
-        for plan in (above, down):
+        for plan in plans[:-1]:
             m = self._motion(plan)
             if not m.reached:
                 return Pick(ok=False, reason=m.reason, detail=m.detail, tilt_deg=tilt, yaw_deg=yaw)
         g = self.set_gripper(0.0)
-        self._motion(up)
+        self._motion(plans[-1])
         return Pick(ok=g.holding, reason=None if g.holding else "empty", width_m=g.width_m, tilt_deg=tilt, yaw_deg=yaw)
 
     # ------------------------------------------------------------------ place
@@ -306,12 +354,11 @@ class ArmActions:
         else:
             x, y = float(target[0]), float(target[1])
             bottom = self.cfg.table_z + self.cfg.place_gap_m if bottom_z is None else float(bottom_z)
-        cur, cur_yaw, _ = self.arms_backend.tcp_pose()
+        _, cur_yaw, _ = self.arms_backend.tcp_pose()
         width = float(self.arms_backend.gripper_width())
 
         def legs(p, h, yw, t, ht):
-            rise = [([cur[0], cur[1], h[2]], cur_yaw, ht, "joint")] if h[2] > cur[2] + RISE_FIRST_M else []
-            return [*rise, (h, yw, ht, "joint"), (p, yw, t, "line"), (h, yw, ht, "line")]
+            return [*self._crossing(h, yw, ht, width), (p, yw, t, "line"), (h, yw, ht, "line")]
 
         yaws = [_wrap(float(yaw_deg))] if yaw_deg is not None else [self._keep_yaw(float(cur_yaw), x, y)]
         try:
@@ -342,7 +389,7 @@ class ArmActions:
 
     def _drag_route(self, s: Sight, goal: list[float], z: float, width: float, yaw_deg: float | None) -> tuple:
         """Each end leans only as far as it must; the line keeps one height, the higher one needed.
-        Returns (yaw, tilt at the start, plans): above, down, slide, up, and back up from the start."""
+        Returns (yaw, tilt at the start, plans): down to the piece, slide, up, and back up from the start."""
         x, y = float(s.center_xyz[0]), float(s.center_xyz[1])
         detail = f"no pose reaches ({x:.3f}, {y:.3f}) and ({goal[0]:.3f}, {goal[1]:.3f}) at {z:.3f}"
         for yaw in self._grasp_yaws(s, yaw_deg):
@@ -354,13 +401,13 @@ class ArmActions:
                     if hover is None or end_hover is None:
                         continue
                     try:
-                        plans = self._plan_legs([(hover[0], yaw, hover[1], "joint"), (start, yaw, tilt, "line"),
+                        plans = self._plan_legs([*self._crossing(hover[0], yaw, hover[1], width), (start, yaw, tilt, "line"),
                                                  (end, yaw, end_tilt, "line"), (end_hover[0], yaw, end_hover[1], "line")])
-                        back = self.arms_backend.plan([float(v) for v in hover[0]], yaw, hover[1], "line", start=plans[1])
+                        back = self.arms_backend.plan([float(v) for v in hover[0]], yaw, hover[1], "line", start=plans[-3])
                     except Unreachable as exc:
                         detail = str(exc)
                         continue
-                    return yaw, tilt, (*plans, back)
+                    return yaw, tilt, (plans[:-2], plans[-2], plans[-1], back)
         raise Unreachable(detail)
 
     def _drag(self, s: Sight, goal: list[float], z: float | None, yaw_deg: float | None,
@@ -371,11 +418,11 @@ class ArmActions:
         grasp_z = float(z) if z is not None else float(s.grasp_xyz[2])
         width = self._open_width(s, width_m)
         try:
-            yaw, tilt, (above, down, slide, up, back) = self._drag_route(s, goal, grasp_z, width, yaw_deg)
+            yaw, tilt, (to_piece, slide, up, back) = self._drag_route(s, goal, grasp_z, width, yaw_deg)
         except Unreachable as exc:
             return Drag(ok=False, reason="unreachable", detail=str(exc))
         self.set_gripper(width)
-        for plan in (above, down):
+        for plan in to_piece:
             m = self._motion(plan)
             if not m.reached:
                 return Drag(ok=False, reason=m.reason, detail=m.detail, tilt_deg=tilt, yaw_deg=yaw)

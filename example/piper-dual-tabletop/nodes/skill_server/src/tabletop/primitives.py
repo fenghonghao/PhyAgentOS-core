@@ -43,6 +43,7 @@ class RobotConfig:
     tcp_floor_z_m: float | None = None
     fingertip_m: float = 0.0125         # fingertips below the TCP
     finger_half_depth_m: float = 0.0    # half a finger's width across the closing line: a lean lowers its edge
+    camera_quiet_s: float = 3.0  # a camera this long without a new image has stopped (segmentation holds it up about 1.5 s)
     holding_min_width_m: float = 0.004
     grasp_depth_max_m: float = 0.03
     open_margin_m: float = 0.03
@@ -307,7 +308,12 @@ class Robot(ArmActions):
     def _frame(self, camera: str) -> Frame:
         if self.perception is None:
             raise RuntimeError("no cameras configured")
-        return self.perception.capture(self._camera_name(camera))
+        frame = self.perception.capture(self._camera_name(camera))
+        age = frame.meta.get("age_s", 0.0)
+        if age > self.cfg.camera_quiet_s:  # a USB drop ends the stream: an old image must not pass for a new one
+            raise RobotFault(f"camera {camera}: no new image for {age:.0f} s, it has stopped, so its images would be "
+                             "old. The arm and the other camera still work; Sights you have are good if nothing moved.")
+        return frame
 
     @staticmethod
     def _marked_rgb(frame: Frame, marks: list[Any]) -> tuple[np.ndarray, list[int]]:

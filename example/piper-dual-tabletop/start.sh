@@ -53,6 +53,8 @@ if [ "$SIM" -eq 0 ]; then
     SKILL_SERVER_VENV="$VENV" bash "$HERE/scripts/setup_guarded_camera.sh" \
       || bad "guarded camera dependency install failed"
   fi
+  "$VENV/bin/python" "$HERE/scripts/patch_orbbec_shutdown.py" "$CAMERA_ROOT/orbbec-camera-1.1.0-shmfix" \
+    || bad "camera shutdown patch failed"
   echo "== CAN"
   dpkg -s can-utils >/dev/null 2>&1 && ok "can-utils" || bad "can-utils missing: sudo apt install can-utils"
   # the CAN interface(s) named in the profile's driver config(s) (single booth arm: piper.yaml)
@@ -87,5 +89,11 @@ fi
 echo "== GPU"
 command -v nvidia-smi >/dev/null && ok "$(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader | head -1)" \
   || warn "no NVIDIA GPU visible"
+
+if [ "$SIM" -eq 0 ] && [ "$fail" -eq 0 ]; then
+  echo "== live view"
+  # Only a page to watch: when it does not start the skill still does.
+  if out="$(SKILL_SERVER_VENV="$VENV" bash "$HERE/nodes/run_live_view.sh" 2>&1)"; then ok "$out"; else warn "$out"; fi
+fi
 
 [ "$fail" -eq 0 ] && { echo "PRE-FLIGHT OK"; exit 0; } || { echo "PRE-FLIGHT FAILED"; exit 1; }

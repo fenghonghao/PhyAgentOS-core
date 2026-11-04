@@ -1,0 +1,32 @@
+load extensions from /home/bsb/.PhyAgentOS/skills/.venvs/piper-dual-tabletop-skill-server/lib/python3.12/site-packages/pyorbbecsdk/extensions
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO - [orbbec_camera] === 开始应用属性 ===
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.mirror: → False
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.flip: → False
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ depth.mirror: → False
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ depth.flip: → False
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ ir.mirror: → False
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ ir.flip: → False
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.auto_exposure: → False
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.exposure_us: 2259 → 2259
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.gain: 16 → 16
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.auto_white_balance: → True
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.brightness: 52 → 52
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.sharpness: 99 → 99
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.saturation: 32 → 32
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.contrast: 40 → 40
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ color.power_line_frequency: 0 → 0
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ depth.auto_exposure: → True
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ depth.noise_removal_filter: → True
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ depth.hole_filter: → False
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ depth.disparity_to_depth: → True
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ ir.auto_exposure: → True
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ laser.ldp_enabled: → True
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO -   ✅ laser.enabled: → True
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO - [orbbec_camera] === 属性应用完成 ===
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO - [orbbec_camera] DisparityTransform ON (params 只读，软件裁剪兜底: min=0 max=10000)
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO - [orbbec_camera] ThresholdFilter ON (set_value_range 不可用，软件裁剪兜底)
+2026-11-04 18:21:24 - forge_devices_orbbec_camera.backend_orbbec - INFO - [orbbec_camera] SDK 滤波链就绪: ['DisparityTransform', 'ThresholdFilter']
+FIRST_FRAME 0.145
+RESULT {"received": 74, "repeats": 0, "first_sec": 0.145, "last_seq": 74, "elapsed": 5.01}
+CLOSE_RESULT {"elapsed": 1.0, "exitcode": 0}
+BACKEND_CLOSED

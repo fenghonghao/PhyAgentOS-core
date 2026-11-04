@@ -1,0 +1,54 @@
+{
+  "cameras": {
+    "head": {
+      "serial": "via Dora",
+      "error": null,
+      "color_fps": 0.0,
+      "depth_fps": 0.0
+    },
+    "wrist": {
+      "serial": "via Dora",
+      "error": null,
+      "color_fps": 30.3,
+      "depth_fps": 30.3
+    }
+  },
+  "arm": {
+    "joints": [
+      56.861000000000004,
+      91.636,
+      -84.85300000000001,
+      0.0,
+      48.338,
+      72.456
+    ],
+    "pose": [
+      194.774,
+      298.34000000000003,
+      348.523,
+      141.457,
+      11.143,
+      160.497
+    ],
+    "gripper": {
+      "mm": 57.1,
+      "effort": 0.058,
+      "status": 64
+    },
+    "status": {
+      "ctrl": "CAN_CTRL",
+      "arm": "NORMAL",
+      "teach": "RECORD_STOPPED",
+      "motion_reached": true,
+      "err": 0
+    },
+    "age_ms": {
+      "joints": 4,
+      "pose": 5,
+      "gripper": 4,
+      "status": 5
+    },
+    "joint_hz": 200.0,
+    "error": null
+  }
+}

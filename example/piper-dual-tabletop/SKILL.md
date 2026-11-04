@@ -55,6 +55,8 @@ what was printed and shown before it still comes back.
 - Pushing any object that is not being moved costs points; pushing a container costs as much
   as missing it. Move above other objects and go down and up straight (`pick` and `place` do
   this).
+- Nobody changes the scene during a task. If an object or a container is not where it was, your arm
+  moved it: nothing senses contact, so a collision shows only in the next image. Say so in your report.
 - Positions come from `locate`, identity from your own eyes (`show`): do not estimate
   coordinates from an image, and do not trust a label you have not looked at.
 - Perception never moves the arm, and the arm hides what is behind it: `home()` before using
@@ -132,18 +134,25 @@ fruit) then comes out low in the image, where depth is unreliable, and too close
 all. Leaning the gripper outward 20 to 30 degrees (`tilt_deg` 20 to 30) lets the camera look
 straight down from farther away (calculated, not yet tried on the arm).
 
+A camera can stop (a USB connection dropped on the real rig). Then `locate`, `show`, `look` and
+`capture` on it raise `RobotFault` saying so, and that ends the block. Do not look for what is wrong
+with the scene: act on the Sights you already have, and say so in your report.
+
 ### Handling
 
 `pick`, `place` and `drag` plan their whole route before anything moves. When it cannot be done they
 return `ok=False`, `reason="unreachable"`, and the arm and the fingers have not moved. Each makes one
 attempt and does no looking: it acts on the `Sight` you give it, so `locate` again after something
 moved. The gripper leans only as far as it must: straight down wherever it can, and the hover above
-may lean more than the grasp below it.
+may lean more than the grasp below it. They cross at the higher of the two heights, where the arm
+starts and where it hovers: first up on the spot, or first across and then down, so a move out of a
+container does not sweep through it. Other objects are not known to them.
 
 `pick(target, z=None, yaw_deg=None, width_m=None) -> Pick` (`ok`, `reason`, `detail`, `width_m`,
 `tilt_deg`, `yaw_deg`) — grasps a Sight and lifts it: opens to fit, moves above, straight down,
 closes, straight back up. `z`: TCP height of the grasp (default `grasp_xyz`). `yaw_deg`: closing line
-(default `grasp_yaw_deg`, either way round). `width_m`: how far to open before coming down (default
+(default `grasp_yaw_deg`, the way round the wrist turns least; given, it also fixes which way round,
+so leave it out unless you need that line). `width_m`: how far to open before coming down (default
 the object's width + 3 cm, up to 10 cm). Reasons:
 - `empty`: the fingers closed on nothing. The object may have been pushed away: look before trying
   again.
@@ -155,7 +164,9 @@ the object's width + 3 cm, up to 10 cm). Reasons:
 straight back up. Reasons: `not_holding`, `unreachable` (it stays held).
 - `target`: `[x, y]` (its bottom ends 1 cm above the table), or a container's Sight (over its centre,
   its bottom 3 cm above `top_z`; the gripper stays above the rim).
-- `bottom_z`: the height of the object's bottom when let go, instead of those.
+- `bottom_z`: the height of the object's bottom when let go, instead of those. Over a container keep
+  it at least 3 cm above the container's `top_z`, as the default does: a leaning finger can reach 1 to
+  2 cm below a small object's bottom, and `top_z` varies by a few mm.
 - `yaw_deg`: turn the object to this closing line. Without it the line stays if the wrist can keep
   it, else it turns as little as it must; the result's `yaw_deg` says which.
 
@@ -176,14 +187,28 @@ senses contact: keep the line clear of other objects.
   `yaw_deg` = heading from the base + 90, or one finger sits higher than the other and misses it.
 - While holding, the closing line can be at most 100 degrees from that same direction (the wrist's
   limit). For a big turn or a long sideways drag, grasp the way round that leaves room for it.
+- Passing `yaw_deg=s.grasp_yaw_deg` is not the same as leaving it out. At 0.45 m it made the wrist
+  turn 162 degrees, the grasp lean 40 and the hover lean 70, only 3 cm above the grasp and beside a
+  fruit. Left out, the same line was straight down with a 15 degree turn.
+- Two objects can be one: a grasp of one cherry lifted the other on the same stem too (3 times out of
+  4, `width_m` 2.6 to 2.7 cm), and a `pick` of the second at its old position closed on nothing. Before
+  each next `pick`, `home()` and `locate` again. A small object's `center_xyz` is the middle of all it
+  found: once the cherry was found with its stem (`size` 5.8 x 2.2 cm, not 2.4 cm), the fingers closed
+  on the stem at 4 mm and it stayed behind. After a `pick`, compare `width_m` with the object.
+- If `locate` no longer finds an object that should not have moved, `pick` its earlier Sight: `pick`
+  says `empty` if it has gone. That worked for a strawberry. Do not move the arm around to look: after
+  `home()` it is out of the head camera's way.
+- Two words can find the same objects: `locate("cherry")` and `locate("strawberry")` returned the same
+  red spots. Compare positions and look at the image, or you will go to one object twice.
 
 ### Motion, gripper, state
 
 `move_to(xyz, yaw_deg=None, tilt_deg=None, path="auto") -> Move` (`reached`, `final_xyz`, `err_m`,
 `yaw_deg`, `tilt_deg`, `reason`, `detail`) — moves the TCP; the fingertips reach 12.5 mm below it.
 `None` keeps the current angle. `path`: `"line"` is the straight line or nothing (near objects),
-`"joint"` is fast and stays about at the height of its ends (away from objects), `"auto"` is a line up
-to 12 cm and a joint move beyond. `reason` `ik_failed`, `below_floor` or `outside_workspace` means
+`"joint"` is fast but curved (away from objects): between ends of one height it stays about at that
+height, and between two heights it sweeps down or up through whatever stands in between, which once
+turned a box over. `"auto"` is a line up to 12 cm and a joint move beyond. `reason` `ik_failed`, `below_floor` or `outside_workspace` means
 nothing moved, so try another lean or height: it costs nothing. An empty gripper also tries half a
 turn (the result's `yaw_deg` says which).
 
@@ -213,8 +238,8 @@ should point to `READ_UP_DEG`; a row reads left to right along `READ_RIGHT_DEG`.
 
 The competition has three task types. Each playbook says what scores, the blocks to run, the
 decisions and pitfalls. The reference code ran in a fake world only. The words given to `locate`
-worked on the organizers' photos, and "fruit", "cardboard box" and "empty space inside the box"
-also on the real table. The code is a starting point, not a fixed procedure: read
+worked on the organizers' photos, and "fruit" and "cardboard box" also on the real table. The code
+is a starting point, not a fixed procedure: read
 the task and the scene, then write your own blocks, changing the code where the task differs
 (other objects, a different number of items, a different layout, an unexpected result).
 
@@ -228,18 +253,21 @@ moved non-target object −10, every moved container −50.
 1. See: `home()`, `locate` the objects and the container, `show` the numbered head image. From
    the image and the task's words decide which numbers go in. Check each target's `note` and how
    close its neighbours are.
-2. Act: for each target, nearest first, `pick` then `place(container)`. If that cannot reach,
+2. Act: for each target, nearest first, `pick` then `place(container)`. Before each later target,
+   `home()` and `locate` again: the last move may have changed things. If `place` cannot reach,
    `place` right next to the container (within 10 cm of its edge): half the score beats leaving
    the object where it was.
 3. Check: `home()`, `show("head")`: is each target inside? Compare the container with where it
-   was. A dropped object can be located and picked again.
+   was: if it moved, your arm moved it, and you report that. A dropped object can be located and
+   picked again.
 
-**Pitfalls.** Never lower the gripper into a container or push one (−50); `place` releases above
-the rim and never enters. Do not move anything else. Open flaps belong to the box: they make its `top_z` too high and pull its `center_xyz` off the
-opening. `locate("empty space inside the box")` measures the inside itself, with the rim as its
-`top_z` (on the real box: 0.135 to 0.16 m from frame to frame, flaps 0.18 m; position within 3 mm).
-Do this while the box is empty. If its `top_z` is far below the box's, it found only the floor:
-call it again. `too_wide` in a container's `note` means nothing.
+**Pitfalls.** Never lower the gripper into a container or push one (−50): with its `bottom_z` at 0.10 m
+under a rim at about 0.13 m the gripper went in and pushed a real box 11 cm. `place(box)` releases
+above the rim and never enters. Do not move anything else. Use the whole box: `locate("cardboard box")`
+is steady (score 0.95 and up). Open flaps belong to it: they raise its `top_z`, so the object falls a
+little further, and its centre was about 1 cm from the middle of the opening. Do not use
+`locate("empty space inside the box")`: on one box its `top_z` jumped between 0.06, 0.13 and 0.17 m, and
+with the arm in view its centre moved 3 cm. `too_wide` in a container's `note` means nothing.
 
 **Reference code.**
 
@@ -248,23 +276,28 @@ call it again. `too_wide` in a container's `note` means nothing.
 home()
 objects = locate("fruit")
 box = locate("cardboard box")[0]
-opening = (locate("empty space inside the box") or [box])[0]
 print("box", box)
-print("opening", opening)
 for i, s in enumerate(objects, 1):
     print(i, s)
-show("head", marks=objects + [opening])
+show("head", marks=objects + [box])
 ```
 
 ```python
 # Block 2: act, after looking at the image
 TARGETS = [1]                      # the numbers you read from the image
-for i in TARGETS:
-    r = pick(objects[i - 1])
+for k, i in enumerate(TARGETS):
+    s = objects[i - 1]
+    if k:                          # look again, from out of the way: the last move may have changed things
+        home()
+        s = next((n for n in locate(s.text) if np.linalg.norm(np.array(n.center_xyz[:2]) - s.center_xyz[:2]) < 0.03), None)
+        if s is None:
+            print("target", i, "is no longer where it was")
+            continue
+    r = pick(s)
     print("pick", i, r.ok, r.reason)
     if not r.ok:
         continue
-    p = place(opening)
+    p = place(box)
     print("place", i, p.ok, p.reason, p.detail)
     if not p.ok:                   # half score: right next to the container
         print("beside", place([box.center_xyz[0], box.center_xyz[1] - (box.size[0] / 2 + 0.05)]))

@@ -34,8 +34,15 @@ printf '{"scene":"%s","task":%s,"start":%s,"deadline":%s,"skill_version":"%s","c
   "$START" "$DEADLINE" "$SKILL_VERSION" "$CORE_REV" > "$META"
 echo "[scene $SCENE] start $(date +%T)  deadline in ${LIMIT_S}s  log $META"
 
+# A clean workspace for each scene. PAOS allows one open task at a time and keeps it in the workspace, so a
+# scene stopped by the referee would block the next one; a scene's notes must not reach the next either.
+# Only the prompt files carry over.
+WORKSPACE="$LOG_DIR/workspaces/${STAMP}_${SCENE}"
+mkdir -p "$WORKSPACE"
+cp "${HOME}/.PhyAgentOS/workspace/"*.md "$WORKSPACE/"
+
 set +e
-"$PAOS" agent -m "$TASK" -s "scene:${SCENE}:${STAMP}" --no-markdown 2>&1 | tee "$LOG_DIR/${STAMP}_${SCENE}_agent.log"
+"$PAOS" agent -m "$TASK" -s "scene:${SCENE}:${STAMP}" --workspace "$WORKSPACE" --no-markdown 2>&1 | tee "$LOG_DIR/${STAMP}_${SCENE}_agent.log"
 STATUS=${PIPESTATUS[0]}
 set -e
 END="$(date +%s.%N)"

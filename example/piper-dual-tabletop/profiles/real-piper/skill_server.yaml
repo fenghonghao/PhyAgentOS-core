@@ -34,6 +34,9 @@ robot:
   deadline_file: /tmp/paos_scene_deadline
 ledger_path: ~/.PhyAgentOS/logs/piper-dual-tabletop/ledger.jsonl
 show_dir: ~/.PhyAgentOS/logs/piper-dual-tabletop/show   # image files of show()
+# Debugging: both cameras' frames before every gripper move, named in the ledger, never sent to the
+# model. About 0.1 MB per move. Delete this line to turn it off.
+grip_snapshot_dir: ~/.PhyAgentOS/logs/piper-dual-tabletop/grip
 
 # look(): deepseek-flash (OpenAI-compatible, accepts images). Key: env DEEPSEEK_API_KEY, else
 # providers.deepseek.apiKey in the PAOS config (never logged). save_dir keeps every image sent.

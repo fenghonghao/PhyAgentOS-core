@@ -54,7 +54,13 @@
   #prims { flex: 1; display: flex; flex-direction: column; }
   #prims-list { flex: 1; overflow-y: auto; min-height: 0; }
   #prims label { display: flex; gap: 4px; align-items: center; font-weight: 400; color: var(--dim); font-size: 12px; }
-  .run { border-top: 1px solid var(--line); padding: 6px 0; }
+  .run { border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; margin: 5px 0; }
+  .scene-h { margin: 12px 0 4px; padding-top: 6px; border-top: 2px solid var(--line); color: var(--dim); font-size: 12px; }
+  .msg { margin: 6px 0; padding: 6px 9px; border-radius: 8px; white-space: pre-wrap; word-break: break-word; }
+  .msg.user { background: #22344a; margin-left: 28px; }
+  .msg.ai { background: #232a33; margin-right: 12px; }
+  details.think, details.toolcall { margin: 3px 0; font-size: 11px; color: var(--dim); }
+  details summary { cursor: pointer; }
   .run-h { display: flex; gap: 8px; align-items: center; cursor: pointer; font-variant-numeric: tabular-nums; }
   .run-h .dim, .row .dim { color: var(--dim); }
   .run-h .spacer { flex: 1; }
@@ -111,7 +117,7 @@
     <div class="panel" id="prims">
       <h2>原语调用 <span class="tag" id="tag-prims">—</span><span class="spacer"></span>
         <label><input type="checkbox" id="follow" checked> 跟随最新</label></h2>
-      <div class="controls" style="margin-bottom:4px">一个代码块结束后才更新；点一行看入参和结果，并画进 3D 场景</div>
+      <div class="controls" style="margin-bottom:4px">模型回复实时显示，代码块跑完后插入；思考和工具详情在场景结束后补全；点一行看入参和结果，并画进 3D</div>
       <div id="prims-list"></div>
     </div>
   </div>
@@ -551,6 +557,7 @@ function makeRow(c) {
     if (c.group) {
       c.group.forEach(g => det.appendChild(makeRow(g)));
     } else {
+      for (const path of c.args?.before_images || []) det.insertAdjacentHTML('beforeend', `<div class="dim">夹爪动作前</div><img loading="lazy" alt="" src="/api/shot?path=${encodeURIComponent(path)}">`);
       if (c.call === 'show' && c.args?.path) det.insertAdjacentHTML('beforeend', `<img loading="lazy" alt="" src="/api/shot?path=${encodeURIComponent(c.args.path)}">`);
       det.insertAdjacentHTML('beforeend', `<pre>入参 ${esc(JSON.stringify(c.args, null, 1))}\n结果 ${esc(JSON.stringify(c.error ?? c.result, null, 1))}</pre>`);
       (c.children || []).forEach(n => det.appendChild(makeRow(n)));
@@ -574,7 +581,7 @@ function foldLocates(top) {   // runs of 3 or more locate calls become one row
   }
   return out;
 }
-function addRun(run) {
+function makeRunCard(run) {
   const top = tree(run);
   const card = document.createElement('div'); card.className = 'run';
   const when = new Date(run.t * 1000).toTimeString().slice(0, 8);
@@ -595,21 +602,126 @@ function addRun(run) {
     rows.insertAdjacentHTML('beforebegin', `<pre>${esc(run.code || '')}${run.output ? `\n--- 输出\n${esc(run.output)}` : ''}${run.error ? `\n--- 错误\n${esc(run.error)}` : ''}</pre>`);
   });
   $('.run-h', card).addEventListener('click', () => { $('#follow').checked = false; select(top); });
-  $('#prims-list').prepend(card);
-  while ($('#prims-list').children.length > 60) $('#prims-list').lastChild.remove();
-  if ($('#follow').checked) select(top);
+  return card;
 }
-let ledgerOffset = -1, runCount = 0;
+// ------ conversation: scenes woven with the robot.run cards, oldest first like a chat
+const runsById = new Map();      // invocation_id -> ledger record
+const looseCards = new Map();    // invocation_id -> card of a run no finished scene has claimed yet
+const claimed = new Set();
+const sceneEls = new Map();      // file name -> { el, mtime }
+const listEl = $('#prims-list');
+
+function place(el, t) {
+  el.dataset.t = t;
+  for (const child of listEl.children) if (+child.dataset.t > t) { listEl.insertBefore(el, child); return; }
+  listEl.appendChild(el);
+}
+function bubble(cls, text) {
+  const d = document.createElement('div'); d.className = `msg ${cls}`; d.textContent = text; return d;
+}
+function foldout(cls, title, body) {
+  const d = document.createElement('details'); d.className = cls;
+  d.innerHTML = `<summary>${esc(title)}</summary><pre>${esc(body)}</pre>`;
+  return d;
+}
+function renderScene(data) {
+  const el = document.createElement('div');
+  const results = new Map(data.messages.filter(m => m.role === 'tool').map(m => [m.call_id, m]));
+  const head = document.createElement('div'); head.className = 'scene-h';
+  head.textContent = `场景 ${(data.key || data.name).split(':').slice(1, 2).join('') || data.name} · ${(data.created_at || '').slice(11, 19)}`;
+  el.appendChild(head);
+  const shown = new Set();
+  for (const m of data.messages) {
+    if (m.role === 'user') {
+      if (m.text && !m.text.startsWith('The images above were requested')) el.appendChild(bubble('user', m.text));
+    } else if (m.role === 'assistant') {
+      if (m.reasoning) el.appendChild(foldout('think', '思考', m.reasoning));
+      if (m.text) el.appendChild(bubble('ai', m.text));
+      for (const call of m.calls || []) {
+        const res = results.get(call.id), inv = res?.invocation;
+        if (inv && runsById.has(inv) && !shown.has(inv)) {
+          shown.add(inv); claimed.add(inv);
+          looseCards.get(inv)?.remove(); looseCards.delete(inv);
+          el.appendChild(makeRunCard(runsById.get(inv)));
+        } else {
+          el.appendChild(foldout('toolcall', `工具 ${call.name}`, `入参 ${call.args}\n结果 ${res?.text ?? ''}`));
+        }
+      }
+    }
+  }
+  return el;
+}
+function followLatest() {
+  if (!$('#follow').checked) return;
+  const last = [...runsById.values()].reduce((a, b) => (!a || b.t > a.t ? b : a), null);
+  if (last) select(tree(last));
+  listEl.scrollTop = listEl.scrollHeight;
+}
+let ledgerOffset = -1, polling = false;
 async function pollLedger() {
-  try {
-    const { offset, runs } = await (await fetch(`/api/ledger?since=${ledgerOffset}`)).json();
-    ledgerOffset = offset;
-    runs.forEach(addRun);
-    runCount += runs.length;
-    setTag('#tag-prims', `${runCount} 个代码块`, runCount ? 'ok' : '');
-  } catch { /* server restarting */ }
+  const { offset, runs } = await (await fetch(`/api/ledger?since=${ledgerOffset}`)).json();
+  ledgerOffset = offset;
+  for (const run of runs) {
+    runsById.set(run.invocation_id, run);
+    if (claimed.has(run.invocation_id)) continue;
+    const card = makeRunCard(run);
+    looseCards.set(run.invocation_id, card);
+    place(card, run.t - (run.elapsed_s || 0));   // where the block started, so it follows the reply that led to it
+  }
+  return runs.length;
 }
-pollLedger(); setInterval(pollLedger, 1000);
+async function pollScenes() {
+  let changed = 0;
+  for (const { name, mtime } of await (await fetch('/api/scenes')).json()) {
+    if (sceneEls.get(name)?.mtime === mtime) continue;
+    const data = await (await fetch(`/api/scene?name=${encodeURIComponent(name)}`)).json();
+    const el = renderScene(data);
+    sceneEls.get(name)?.el.remove();
+    place(el, new Date(data.created_at).getTime() / 1000);
+    sceneEls.set(name, { el, mtime });
+    changed++;
+  }
+  return changed;
+}
+// The scene in progress: replies from the agent log, replaced by the full conversation when the scene ends.
+const live = { id: null, els: [] };
+function clearLive() { live.els.forEach(e => e.remove()); live.els = []; live.id = null; }
+async function pollLive() {
+  const d = await (await fetch('/api/live_scene')).json();
+  if (d.saved || !d.scene) { clearLive(); return 0; }
+  const id = `${d.stamp}_${d.scene}`;
+  if (live.id !== id) {
+    clearLive(); live.id = id;
+    const head = document.createElement('div'); head.className = 'scene-h';
+    place(head, d.start - 0.002); live.els.push(head); live.head = head;
+    const task = bubble('user', d.task || d.scene);
+    place(task, d.start - 0.001); live.els.push(task); live.task = task;
+    live.replies = [];
+  }
+  live.head.textContent = `场景 ${d.scene} · ${d.stamp.slice(9, 11)}:${d.stamp.slice(11, 13)}:${d.stamp.slice(13, 15)} · ${d.ended ? '已结束，未写会话记录' : '进行中'}`;
+  if (d.task) live.task.textContent = d.task;
+  let fresh = 0;
+  d.replies.forEach((r, i) => {
+    if (!live.replies[i]) {
+      const el = bubble('ai', r.text);
+      place(el, r.t); live.els.push(el); live.replies[i] = el; fresh++;
+    } else if (live.replies[i].textContent !== r.text) live.replies[i].textContent = r.text;
+  });
+  return fresh;
+}
+async function poll() {
+  if (polling) return;
+  polling = true;
+  try {
+    // the ledger first: a scene's runs are always written before the scene itself
+    const fresh = await pollLedger() + await pollScenes() + await pollLive();
+    setTag('#tag-prims', `${sceneEls.size} 个场景 · ${runsById.size} 个代码块`, runsById.size ? 'ok' : '');
+    if (fresh) followLatest();
+  } catch { /* server restarting, or a file being rewritten: next poll */ }
+  polling = false;
+}
+poll(); setInterval(poll, 1000);
+$('#follow').addEventListener('change', followLatest);
 
 // ---------------------------------------------------------------- main loop
 function frame() {

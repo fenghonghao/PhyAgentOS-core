@@ -252,6 +252,8 @@ class Runner:
         self.robot.look_dir = Path(look_dir).expanduser() if look_dir else None
         if cfg.get("show_dir"):
             self.robot.show_dir = Path(cfg["show_dir"]).expanduser()
+        if cfg.get("grip_snapshot_dir"):
+            self.robot.grip_snapshot_dir = Path(cfg["grip_snapshot_dir"]).expanduser()
         self.executor = Executor(self.robot)
         self.done: queue.Queue = queue.Queue()
         ledger = cfg.get("ledger_path")
