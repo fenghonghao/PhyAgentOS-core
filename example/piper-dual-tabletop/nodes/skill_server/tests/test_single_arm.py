@@ -1,4 +1,4 @@
-"""look() in the booth: marks, reference images, its failures."""
+"""look() in the booth: marks, given images, its failures."""
 
 import base64
 import io
@@ -70,7 +70,7 @@ def test_look_sends_marked_head_image_and_parses_json(world, tmp_path, monkeypat
     assert len(imgs) == 1 and "Numbered colored rings (1 to 2)" in text and "head camera" in text
 
 
-def test_look_with_reference_image_sends_it_first(world, tmp_path, monkeypatch):
+def test_look_with_given_image_sends_it_first(world, tmp_path, monkeypatch):
     from PIL import Image
 
     monkeypatch.setenv("TEST_VLM_KEY", "k-test")
@@ -78,9 +78,9 @@ def test_look_with_reference_image_sends_it_first(world, tmp_path, monkeypatch):
     Image.fromarray(np.full((40, 60, 3), 200, np.uint8)).save(target)
     vlm = FakeVLM("red block")
     robot = Robot(world, world, RobotConfig(wrist_cameras={"left": "wrist_left"}), vision=vision(vlm, tmp_path))
-    assert robot.look("Which object is shown in the reference image?", image=str(target)) == "red block"
+    assert robot.look("Which object is shown in image 1?", image=str(target)) == "red block"
     imgs, text = images_of(vlm.calls[0][1])
-    assert len(imgs) == 2 and text.startswith("Image 1 is the reference image")
+    assert len(imgs) == 2 and text.startswith("Image 1 is an image given with this question")
     first = Image.open(io.BytesIO(base64.b64decode(imgs[0]["image_url"]["url"].split(",", 1)[1])))
     assert first.size == (60, 40)
     with pytest.raises(ValueError):

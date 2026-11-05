@@ -7,12 +7,12 @@ debug: false
 # hardware speed percent for normal actions; first real run 30, raise on site
 motion_speed_percent: 30
 # The driver moves here right after connecting and before Dora starts.
-# joint3 upper limit is 0: keep -0.02 so encoder drift does not put the start state out of limits.
+# The same pose as home_joints in skill_server.yaml, high above a box standing next to the arm.
 # CHECK ON SITE that this pose is collision-free (camera pole, side panels).
 positions:
   initial:
     joint2: 0.5
-    joint3: -0.02
+    joint3: -0.30
     gripper: 0.02
   # on stop the driver moves here and closes to this opening, then drops CAN (no disable)
   reset:

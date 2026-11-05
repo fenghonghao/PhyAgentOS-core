@@ -403,32 +403,49 @@ def test_a_pick_of_something_tall_from_low_rises_on_the_spot_first(robot, stack,
 
 # ---------------------------------------------------------------- the way round of Playbook C on the real arm
 
-def way_round_of_the_manual():
+def manual_put():
+    """The stack, the robot, the ``pick`` results and ``put`` as the manual writes it."""
     text = (Path(__file__).resolve().parents[3] / "SKILL.md").read_text(encoding="utf-8")
-    start = text.index("def way_round(s, turn, slot):")
-    code = text[start:text.index("\ndef grasp(s, turn, slot):", start)]
-    scope = {"math": math}
-    exec(code, scope)  # noqa: S102
-    return scope["way_round"]
+    start = text.index("def put(s, slot, turn):")
+    s = Stack()
+    s.backend = DoraArmBackend({"left": ArmConfig(name="left", urdf=URDF, home_joints=HOME, max_opening_m=0.10)},
+                               MotionConfig(), s)
+    s.publish()
+    robot = Robot(s.backend, None, RobotConfig(tcp_floor_z_m=FLOOR, finger_half_depth_m=0.01))
+    picks = []
+
+    def pick(*args, **kwargs):
+        picks.append(robot.pick(*args, **kwargs))
+        return picks[-1]
+
+    scope = {"math": math, "pick": pick, "place": robot.place, "TCP_FLOOR_Z": FLOOR}
+    exec(text[start:text.index("\nAWAY = ", start)], scope)  # noqa: S102
+    return s, robot, picks, scope["put"]
 
 
-@pytest.mark.parametrize("slot", [(0.28, 0.32), (0.28, 0.20), (0.28, 0.08), (0.34, 0.14)])
-@pytest.mark.parametrize("at", [(0.35, 0.25), (0.30, 0.05), (0.40, 0.38)])
-def test_a_piece_grasped_the_way_round_can_turn_into_its_slot(at, slot):
-    way_round = way_round_of_the_manual()
-    failed = []
-    for turn in range(-90, 91, 30):                                  # further goes in two grasps
-        s = Stack()
-        s.backend = DoraArmBackend({"left": ArmConfig(name="left", urdf=URDF, home_joints=HOME, max_opening_m=0.10)},
-                                   MotionConfig(), s)
-        s.publish()
-        s.object_width = 0.03
-        robot = Robot(s.backend, None, RobotConfig(tcp_floor_z_m=FLOOR, finger_half_depth_m=0.01))
-        piece = sight(at[0], at[1], top=0.01, width=0.03, yaw=math.degrees(math.atan2(at[1], at[0])) + 60, grasp_below=0.005)
-        r = robot.pick(piece, yaw_deg=way_round(piece, turn, slot))
-        if not r.ok or not robot.place(list(slot), yaw_deg=r.yaw_deg + turn).ok:
-            failed.append(turn)
-    assert not failed, failed
+def flat_piece(x, y, length, width, grasp_yaw):
+    piece = sight(x, y, top=0.008, width=width, yaw=grasp_yaw, grasp_below=0.005)
+    piece.size = [length, width, 0.008]
+    return piece
+
+
+def test_a_flat_piece_is_grasped_straight_down_after_the_piece_before_it():
+    # A real scene: with the closing line chosen for the turn, this "=" was reached leaning 55 degrees
+    # and the fingers closed above it.
+    s, _, picks, put = manual_put()
+    s.object_width = 0.015
+    assert put(flat_piece(0.3995, 0.1982, 0.036, 0.015, -16.84), np.array([0.29, 0.36]), 20.0).ok
+    s.object_width = 0.0237
+    assert put(flat_piece(0.3576, 0.0756, 0.0353, 0.0237, 29.22), np.array([0.29, 0.24]), -35.0).ok
+    assert picks[-1].tilt_deg == 0.0, picks[-1]
+
+
+def test_a_turn_the_wrist_can_make_is_made():
+    s, _, picks, put = manual_put()
+    s.object_width = 0.03
+    p = put(flat_piece(0.35, 0.25, 0.03, 0.03, math.degrees(math.atan2(0.25, 0.35)) + 60), np.array([0.28, 0.20]), 30.0)
+    assert p.ok, p
+    assert abs((p.yaw_deg - picks[0].yaw_deg - 30.0 + 180.0) % 360.0 - 180.0) < 1.0
 
 
 # where the pieces lay in a real scene, the farthest 0.59 m from the base, and two more
@@ -461,20 +478,15 @@ def test_the_wrist_camera_gets_over_a_piece_leaning_wherever_it_lies(x, y):
     assert 0.15 < depth[0] < 0.25, depth
 
 
-@pytest.mark.parametrize("turn", [120, 150, 180, -120, -150, -180])
-@pytest.mark.parametrize("at,slot", [((0.35, 0.25), (0.28, 0.20)), ((0.30, 0.05), (0.28, 0.32)), ((0.40, 0.38), (0.34, 0.14))])
-def test_a_big_turn_ends_in_the_slot_in_one_or_two_grasps(at, slot, turn):
-    text = (Path(__file__).resolve().parents[3] / "SKILL.md").read_text(encoding="utf-8")
-    start = text.index("def way_round(s, turn, slot):")
-    s = Stack()
-    s.backend = DoraArmBackend({"left": ArmConfig(name="left", urdf=URDF, home_joints=HOME, max_opening_m=0.10)},
-                               MotionConfig(), s)
-    s.publish()
+@pytest.mark.parametrize("turn", [120, 150, 172, 180, -120, -150, -180])
+@pytest.mark.parametrize("at,slot", [((0.35, 0.25), (0.28, 0.20)), ((0.30, 0.05), (0.28, 0.32)), ((0.40, 0.38), (0.34, 0.14)),
+                                     ((0.251, 0.365), (0.26, 0.30))])   # the last: where a real scene left the piece in the hand
+def test_a_big_turn_goes_in_one_grasp_and_the_piece_ends_in_its_slot(at, slot, turn):
+    s, robot, picks, put = manual_put()
     s.object_width = 0.03
-    robot = Robot(s.backend, None, RobotConfig(tcp_floor_z_m=FLOOR, finger_half_depth_m=0.01))
-    scope = {"math": math, "pick": robot.pick, "place": robot.place, "TCP_FLOOR_Z": FLOOR}
-    exec(text[start:text.index("\nAWAY = ", start)], scope)  # noqa: S102
     piece = sight(at[0], at[1], top=0.01, width=0.03, yaw=math.degrees(math.atan2(at[1], at[0])) + 60, grasp_below=0.005)
-    p = scope["put"](piece, np.array(slot), float(turn))
+    p = put(piece, np.array(slot), float(turn))
     assert p.ok, p
-    assert robot.arms_backend.tcp_pose()[0][:2] == pytest.approx(list(slot), abs=0.08)
+    assert p.release_xyz[:2] == pytest.approx(list(slot), abs=2e-3)
+    assert not robot.state().holding
+    assert len(picks) == 1                                           # a turn out of reach stays undone

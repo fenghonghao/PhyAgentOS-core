@@ -9,7 +9,8 @@ arms:
     urdf: ../../assets/robots/piper/piper_with_gripper_real.urdf
     base_xyz: [0.0, 0.0, 0.0]
     base_rpy_deg: [0.0, 0.0, 0.0]
-    home_joints: [0.0, 0.5, -0.02, 0.0, 0.0, 0.0]
+    # TCP 26 cm high: a box is 17 cm, and a joint move from a low home swept into it (11-05, box moved 18 cm)
+    home_joints: [0.0, 0.5, -0.30, 0.0, 0.0, 0.0]
     max_opening_m: 0.10          # measured: commanding 100 mm reads 99.6 mm (not yet checked with a ruler)
 motion:
   velocity_scale: 0.5
@@ -22,7 +23,10 @@ robot:
   # The camera calibration defines the table as z = 0. Everything that matters is relative to the
   # table (fingertip height = TCP z - 12.5 mm), so this holds with or without a plate under the base.
   table_z: 0.0
-  tcp_floor_z_m: 0.0155                # measured TCP z at touch (12.5 mm) + 3 mm margin
+  # 11-05: pressed by hand onto the table the fingertips read about 2 mm lower than above (flange z 145.9
+  # at 281 mm reach, 145.1 at 466 mm), cause not known. At 0.0155 a 10 mm block was held by its top half only.
+  tcp_floor_z_m: 0.0125                # reached 13.2 on the real arm, about 2.6 mm above the 11-05 touch
+  approach_tilts_deg: [0, 5, 10, 15, 25, 40, 55, 70]   # just out of straight-down reach 5 degrees lets the fingers down over a flat piece; 15 closed above it
   head_camera: head
   wrist_cameras: {left: wrist}
   finger_half_depth_m: 0.01            # estimate, MEASURE: half a finger's width; a lean lowers its edge by this x sin(lean)

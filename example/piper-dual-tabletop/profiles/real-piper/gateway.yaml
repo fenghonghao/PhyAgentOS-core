@@ -26,10 +26,12 @@ tools:
       operation: run
       semantics: action
       description: >-
-        Execute a Python block on the robot computer. The block can call the dual-arm
-        primitives (locate, move_to, home, wait, set_gripper, state, time_left) and the
-        handover skill described in the skill document. Variables persist between blocks
-        within a scene. Returns printed output, the error traceback if any, and elapsed time.
+        Execute a Python block on the robot computer. The block can call the single-arm
+        primitives (locate, show, look, capture, pick, place, drag, move_to, home,
+        set_gripper, state, time_left) described in the skill document. Variables and
+        functions persist between blocks within a scene. Returns printed output, the error
+        traceback if any, elapsed time, the number of primitive calls and the image files
+        of show().
       input_schema:
         type: object
         additionalProperties: false
@@ -39,13 +41,16 @@ tools:
       output_schema:
         type: object
         additionalProperties: false
-        required: [ok, output, error, elapsed_s, primitive_calls]
+        required: [ok, output, error, elapsed_s, primitive_calls, images]
         properties:
           ok: {type: boolean}
           output: {type: string}
           error: {type: [string, "null"]}
           elapsed_s: {type: number}
           primitive_calls: {type: integer, minimum: 0}
+          images:
+            type: array
+            items: {type: string}
       readiness: []
   providers:
     - endpoint_id: robot.skill_server

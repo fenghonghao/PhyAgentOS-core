@@ -460,14 +460,16 @@ give each of them a free place in `AWAY`: the code moves them first, about 21 s 
    (Block 1b).
 3. Act: fill in `CENTRE`, `READ` for what `look` told you, `AWAY` if the row lies over unused pieces. The
    code finds a true equation, checks the slots and moves the pieces without going home in between.
-4. Check: `home()`, `show("head")`, read the row as the judges do.
+4. Check: `home()`, `show("head")`, read the row as the judges do. A piece missing from the row is worth
+   another go; a piece lying turned is not.
 
-**Pitfalls.** "−" turned 90 degrees looks like "1". A complete row of the right pieces already earns
-half, so a piece that cannot be turned is still put in its slot. Grasp the way the code chooses: it
-leaves the wrist room for the turn. A turn the wrist cannot make at once goes in two grasps, about
-21 s more.
+**Making the row comes first.** Turn a piece if the wrist can, in its one grasp. If it cannot, `put` lays
+the piece in its slot as it is: the organisers confirmed that a piece left unturned loses no points, so do
+not try again and do not go back to turn it. Let `pick` choose the closing line: one chosen for the turn
+made the arm lean 55 degrees in a real run, and the fingers closed above the flat piece. "−" turned 90
+degrees looks like "1", and its turn is never more than 90 degrees.
 
-**Reference code.** Only the functions of the API exist from the start. `way_round`, `grasp`, `put` and
+**Reference code.** Only the functions of the API exist from the start. `put` and
 the others below exist once a block has defined them, so copy their definitions into your block.
 
 ```python
@@ -560,33 +562,12 @@ in_the_way = [s for s in pieces if s.symbol not in slots and distance_to_slots(s
 print("slots", {k: np.round(v, 3).tolist() for k, v in slots.items()},
       "in the way:", [(s.symbol, np.round(s.center_xyz[:2], 3).tolist()) for s in in_the_way])
 
-def way_round(s, turn, slot):                 # the closing line to grasp with: the wrist stops 100 degrees from the tangent
-    def off(yaw, xy):
-        return abs((yaw - math.degrees(math.atan2(xy[1], xy[0])) - 90 + 180) % 360 - 180)
-
-    lines = [s.grasp_yaw_deg, s.grasp_yaw_deg + 180]
-    if s.size[0] < 1.4 * s.size[1]:           # about square: it can also be held across the other way
-        lines += [s.grasp_yaw_deg + 90, s.grasp_yaw_deg - 90]
-    return min(lines, key=lambda g: max(off(g, s.center_xyz[:2]), off(g + turn, slot)))
-
-def grasp(s, turn, slot):
-    return pick(s, z=TCP_FLOOR_Z if s.grasp_xyz is None else None, yaw_deg=way_round(s, turn, slot))
-
 def put(s, slot, turn):
-    r = grasp(s, turn, slot)
+    r = pick(s, z=TCP_FLOOR_Z if s.grasp_xyz is None else None)
     if not r.ok:
         return r
     p = place(slot, yaw_deg=r.yaw_deg + turn)
-    if p.ok or not turn:
-        return p
-    p = place(slot, yaw_deg=r.yaw_deg + turn / 2)   # too far for one go: half now, the rest after grasping again
-    if not p.ok:
-        return place(slot)                    # still in its slot, unturned
-    s.center_xyz[:2] = [float(v) for v in slot]
-    s.points = None
-    s.grasp_yaw_deg += turn / 2
-    r = grasp(s, turn / 2, slot)
-    return place(slot, yaw_deg=r.yaw_deg + turn / 2) if r.ok else r
+    return p if p.ok or not turn else place(slot)   # the wrist cannot make this turn: in its slot as it is
 
 AWAY = []                                     # a free place for each piece in the way, in that order: [[x, y]]
 if len(in_the_way) > len(AWAY):

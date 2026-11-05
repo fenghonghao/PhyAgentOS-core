@@ -1,8 +1,8 @@
 """``look()``: ask a vision-language model about a camera image.
 
 Model-written code calls ``look(question, ...)``. This module takes the latest frame of a
-camera (optionally with numbered marks drawn next to given objects, and optionally a second,
-reference image such as the task's target image), sends it to an OpenAI-compatible
+camera (optionally with numbered marks drawn next to given objects, and optionally another
+image the code gives, such as a crop), sends it to an OpenAI-compatible
 chat-completions endpoint (deepseek-flash by default, the same model PAOS uses) and returns
 the answer text, or the parsed JSON when asked.
 
@@ -72,7 +72,7 @@ def _resolve(cfg: VisionConfig) -> tuple[str, str, str]:
 
 
 def read_image(path: str) -> np.ndarray:
-    """Load an image file model code named (e.g. the task's target image). Only image files
+    """Load an image file model code named. Only image files
     under ``IMAGE_DIRS`` are read."""
     from PIL import Image
 
@@ -216,13 +216,13 @@ class VisionClient:
         return str(text).strip()
 
 
-def build_question(question: str, n_marks: int, has_reference: bool, camera: str | None) -> str:
+def build_question(question: str, n_marks: int, has_image: bool, camera: str | None) -> str:
     """The question, preceded by what the images are. ``camera`` None: only the given image."""
     if camera is None:
         return question.strip()
     parts = []
-    if has_reference:
-        parts.append("Image 1 is the reference image given with the task.")
+    if has_image:
+        parts.append("Image 1 is an image given with this question.")
         parts.append(f"Image 2 is the current view of the robot's {camera} camera.")
     else:
         parts.append(f"The image is the current view of the robot's {camera} camera.")
